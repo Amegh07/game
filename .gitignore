@@ -1,0 +1,39 @@
+# Unity
+[Ll]ibrary/
+[Ll]ogs/
+[Tt]emp/
+[Oo]bj/
+[Uu]ser[S]ettings/
+*.csproj
+*.sln
+*.slnx
+*.user
+*.userprefs
+*.unityplugin
+*.pidb
+*.booproj
+*.svd
+*.pdb
+.mfractor/
+
+# VS Code
+.vscode/
+
+# Windows
+Thumbs.db
+Desktop.ini
+
+# macOS
+.DS_Store
+
+# Build
+[Bb]uild/
+[Dd]ist/
+
+# TutorialLevel is a separate project
+TutorialLevel/Library/
+TutorialLevel/Logs/
+TutorialLevel/Temp/
+TutorialLevel/Obj/
+TutorialLevel/*.csproj
+TutorialLevel/*.sln
