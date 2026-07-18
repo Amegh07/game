@@ -369,7 +369,7 @@ public class TutorialLevelGenerator
         string ctrlPath = dir + "/Guard_AnimatorController.controller";
         AssetDatabase.CreateAsset(controller, ctrlPath);
         foreach (var c in animClips)
-            AssetDatabase.AddObjectToAsset(c, controller);
+            AssetDatabase.AddObjectToAsset(c, ctrlPath);
         AssetDatabase.SaveAssets();
 
         // --- Animator component ---
