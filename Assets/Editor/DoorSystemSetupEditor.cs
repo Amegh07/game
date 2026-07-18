@@ -23,8 +23,8 @@ public class DoorSystemSetupEditor
 
         CreateConfig("VaultDoor", "Vault Door", KeycardType.Vault,
             startsLocked: true, lockOnAlert: true, lockDuringLockdown: true, isEmergency: false,
-            canAutoClose: false,
-            new Color(1f, 0.6f, 0f, 0.3f));
+            new Color(1f, 0.6f, 0f, 0.3f),
+            canAutoClose: false);
 
         CreateConfig("EmergencyExit", "Emergency Exit", KeycardType.Public,
             startsLocked: false, lockOnAlert: false, lockDuringLockdown: false, isEmergency: true,
