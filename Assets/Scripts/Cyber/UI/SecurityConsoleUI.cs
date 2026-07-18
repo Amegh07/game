@@ -19,7 +19,7 @@ namespace MuseumHeist.Cyber
         private bool isVisible;
         private string statusMessage = "";
         private float statusTimer = 0f;
-        private bool cursorWasLocked;
+        private CursorLockMode cursorWasLocked;
         private bool cursorWasVisible;
 
         private const float PANEL_MARGIN = 40f;
