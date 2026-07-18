@@ -356,11 +356,12 @@ public class TutorialLevelGenerator
 
         for (int i = 0; i < states.Length; i++)
         {
-            var asm = sm.AddState(states[i].name, animClips[i]);
+            var asm = sm.AddState(states[i].name);
+            asm.motion = animClips[i];
             if (i == 0) sm.defaultState = asm;
 
             var t = sm.AddAnyStateTransition(asm);
-            t.AddCondition(AnimatorConditionMode.Equals, states[i].value);
+            t.AddCondition("State", AnimatorConditionMode.Equals, states[i].value);
             t.duration = 0.12f;
             t.hasExitTime = false;
         }
