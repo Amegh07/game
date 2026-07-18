@@ -13,6 +13,7 @@ namespace MuseumHeist.Cyber
         [Header("Access")]
         public CredentialType requiredCredentialType = CredentialType.Keycard;
         public UserRole minimumRole = UserRole.Staff;
+        public bool skipAuthentication = false;
 
         [Header("Available Actions")]
         public List<TerminalActionEntry> actions = new();

@@ -36,6 +36,15 @@ public class MissionHUD : MonoBehaviour
         objectiveNames[ObjectiveID.StealMainArtifact] = "Steal the Main Artifact";
         objectiveNames[ObjectiveID.EscapeMuseum] = "Escape the Museum";
         objectiveNames[ObjectiveID.HeistComplete] = "Heist Complete";
+
+        objectiveNames[ObjectiveID.Tutorial_ReachKeycard] = "Reach the training keycard";
+        objectiveNames[ObjectiveID.Tutorial_PickupKeycard] = "Pick up the Training Keycard";
+        objectiveNames[ObjectiveID.Tutorial_OpenDoor] = "Use the keycard to open the door";
+        objectiveNames[ObjectiveID.Tutorial_SneakPastGuard] = "Sneak past the patrolling guard";
+        objectiveNames[ObjectiveID.Tutorial_DisableCamera] = "Disable the security camera";
+        objectiveNames[ObjectiveID.Tutorial_StealArtifact] = "Steal the training artifact";
+        objectiveNames[ObjectiveID.Tutorial_Escape] = "Escape the training facility";
+        objectiveNames[ObjectiveID.Tutorial_Complete] = "Training Complete";
     }
 
     void OnEnable()

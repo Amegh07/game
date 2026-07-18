@@ -7,6 +7,10 @@ public class ArtifactCollectible : MonoBehaviour, IInteractable
     public float floatSpeed = 1f;
     public float floatHeight = 0.3f;
 
+    [Header("Objective")]
+    public ObjectiveID completeObjective = ObjectiveID.StealArtifact;
+    public bool triggerEscapePhase = false;
+
     [Header("State")]
     public bool isCollected = false;
 
@@ -34,7 +38,9 @@ public class ArtifactCollectible : MonoBehaviour, IInteractable
 
         isCollected = true;
         gameObject.SetActive(false);
-        Debug.Log("Artifact collected! Tutorial objective complete.");
-        MissionManager.Instance?.CompleteObjective(ObjectiveID.StealArtifact);
+        Debug.Log($"Artifact collected! Objective '{completeObjective}' complete.");
+        MissionManager.Instance?.CompleteObjective(completeObjective);
+        if (triggerEscapePhase)
+            MissionManager.Instance?.TriggerEscapePhase();
     }
 }

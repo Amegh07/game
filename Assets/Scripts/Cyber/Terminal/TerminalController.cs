@@ -14,6 +14,7 @@ namespace MuseumHeist.Cyber
         private NetworkSession currentSession;
         private List<TerminalActionEntry> availableActions;
         private bool isLocked;
+        private bool skipAuthentication;
 
         public NetworkSession CurrentSession => currentSession;
         public TerminalConfig Config => config;
@@ -67,7 +68,54 @@ namespace MuseumHeist.Cyber
             }
 
             connectedLaptop = laptop;
+
+            if (config.skipAuthentication)
+            {
+                AutoAuthenticate();
+            }
+
             return new ConnectionResult { Success = true };
+        }
+
+        private void AutoAuthenticate()
+        {
+            var allCredentials = CredentialManager.Instance?.GetAllCredentials();
+            if (allCredentials == null || allCredentials.Count == 0) return;
+
+            var authService = AuthenticationService.Instance;
+            if (authService == null) return;
+
+            var authzService = AuthorizationService.Instance;
+            if (authzService == null) return;
+
+            foreach (var stored in allCredentials)
+            {
+                var authResult = authService.Authenticate(stored.CredentialID);
+                if (!authResult.Success) continue;
+
+                var authzResult = authzService.Authorize(
+                    authResult.Role, terminalID, config.minimumRole);
+                if (!authzResult.Authorized) continue;
+
+                currentSession = new NetworkSession
+                {
+                    UserName = authResult.UserName,
+                    Role = authResult.Role,
+                    IsAuthenticated = true,
+                    ConnectedTerminalID = terminalID,
+                    Permissions = authzResult.Permissions ?? new HashSet<string>(),
+                    StartTime = System.DateTime.UtcNow,
+                    IsActive = true
+                };
+
+                LogSessionEvent("Session started (auto-authenticated)");
+                OnSessionStarted?.Invoke(currentSession);
+
+                if (consoleUI != null)
+                    consoleUI.Show(this);
+
+                return;
+            }
         }
 
         public void Disconnect()

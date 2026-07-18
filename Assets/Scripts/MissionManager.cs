@@ -30,7 +30,17 @@ public enum ObjectiveID
     UnlockVault = 21,
     StealMainArtifact = 22,
     EscapeMuseum = 23,
-    HeistComplete = 24
+    HeistComplete = 24,
+
+    // Tutorial objectives
+    Tutorial_ReachKeycard = 100,
+    Tutorial_PickupKeycard = 101,
+    Tutorial_OpenDoor = 102,
+    Tutorial_SneakPastGuard = 103,
+    Tutorial_DisableCamera = 104,
+    Tutorial_StealArtifact = 105,
+    Tutorial_Escape = 106,
+    Tutorial_Complete = 107
 }
 
 public enum MissionPhase

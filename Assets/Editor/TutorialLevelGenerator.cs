@@ -1,28 +1,32 @@
 using UnityEngine;
 using UnityEditor;
-using UnityEditor.Animations;
 using UnityEditor.SceneManagement;
 using UnityEngine.SceneManagement;
 using System.Collections.Generic;
 using System.IO;
+using MuseumHeist.AccessControl;
+using MuseumHeist.Cyber;
 
-public class TutorialLevelGenerator
+public static class TutorialLevelGenerator
 {
-    const float ROOM_WIDTH = 5f;
-    const float ROOM_DEPTH = 5f;
-    const float ROOM_HEIGHT = 3f;
-    const float CORRIDOR_WIDTH = 3f;
-    const float CORRIDOR_DEPTH = 3f;
+    const float ROOM_W = 6f;
+    const float ROOM_D = 5f;
+    const float ROOM_H = 3.5f;
+    const float CORR_W = 3f;
+    const float CORR_D = 3f;
     const float WALL_T = 0.2f;
     const float FLOOR_T = 0.1f;
 
-    // Room Z centers
-    static readonly float[] ROOM_Z = { -20, -12, -4, 4, 12, 20 };
-    static readonly float[] CORRIDOR_Z = { -16, -8, 0, 8, 16 };
+    static readonly float[] ROOM_Z = { -9f, -1f, 7f, 15f, 23f };
+    static readonly string[] ROOM_NAMES = { "TrainingHall", "KeycardChamber", "GuardGallery", "ServerAlcove", "Vault" };
+    static readonly float[] ROOM_WIDTHS = { 6f, 5f, 7f, 5f, 6f };
+    static readonly float[] ROOM_DEPTHS = { 6f, 5f, 6f, 5f, 5f };
+    static readonly float[] CORR_Z = { -5f, 3f, 11f, 19f };
 
     static Dictionary<string, Material> _materials;
+    static Dictionary<string, Object> _configs;
 
-    [MenuItem("Tools/Generate Tutorial Level")]
+    [MenuItem("Tools/Tutorial/Generate Tutorial Level")]
     static void Generate()
     {
         if (!EditorSceneManager.SaveCurrentModifiedScenesIfUserWantsTo())
@@ -30,384 +34,428 @@ public class TutorialLevelGenerator
 
         EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
         _materials = new Dictionary<string, Material>();
+        _configs = new Dictionary<string, Object>();
 
-        // ---- Hierarchy roots ----
-        GameObject envRoot  = CreateEmpty("_Environment", Vector3.zero);
+        LoadConfigs();
+        if (_configs["door"] == null || _configs["camera"] == null || _configs["terminal"] == null)
+        {
+            Debug.LogError("Tutorial config assets not found. Run Tools -> Tutorial -> Generate Config Assets first.");
+            return;
+        }
+
+        GameObject envRoot = CreateEmpty("_Environment", Vector3.zero);
         GameObject roomsRoot = CreateEmpty("Rooms", Vector3.zero, envRoot.transform);
         GameObject propsRoot = CreateEmpty("_Props", Vector3.zero);
-        GameObject guardsRoot = CreateEmpty("_Guards", Vector3.zero);
-        GameObject playerRoot = CreateEmpty("_Player", Vector3.zero);
-        GameObject lightsRoot = CreateEmpty("_Lights", Vector3.zero);
+        GameObject triggersRoot = CreateEmpty("_Triggers", Vector3.zero);
         GameObject securityRoot = CreateEmpty("_Security", Vector3.zero);
+        GameObject playerRoot = CreateEmpty("_Player", Vector3.zero);
+        GameObject uiRoot = CreateEmpty("_UI", Vector3.zero);
+        GameObject lightsRoot = CreateEmpty("_Lights", Vector3.zero);
 
-        // SecurityManager singleton
+        SpawnManagers(securityRoot, triggersRoot, uiRoot);
+        SpawnRooms(roomsRoot);
+        SpawnPickups(propsRoot);
+        SpawnDoors(propsRoot);
+        SpawnGuard(securityRoot, propsRoot);
+        SpawnCamera(securityRoot);
+        SpawnTerminal(propsRoot, securityRoot);
+        SpawnArtifact(propsRoot);
+        SpawnTriggers(triggersRoot);
+        SpawnPlayer(playerRoot);
+        SpawnLights(lightsRoot);
+
+        EditorSceneManager.SaveScene(SceneManager.GetActiveScene(), "Assets/Scenes/Tutorial.unity");
+        Debug.Log("Tutorial level generated! Tools -> Tutorial -> Generate Tutorial Level");
+    }
+
+    static void LoadConfigs()
+    {
+        string baseDir = "Assets/Config/Tutorial";
+        _configs["door"] = AssetDatabase.LoadAssetAtPath<DoorConfig>($"{baseDir}/Doors/TutorialDoor.asset");
+        _configs["camera"] = AssetDatabase.LoadAssetAtPath<CameraConfig>($"{baseDir}/Cameras/TutorialCamera.asset");
+        _configs["terminal"] = AssetDatabase.LoadAssetAtPath<TerminalConfig>($"{baseDir}/Terminals/TutorialTerminal.asset");
+        _configs["roles"] = AssetDatabase.LoadAssetAtPath<RolePermissionsConfig>($"{baseDir}/Roles/TutorialRoleConfig.asset");
+    }
+
+    static void SpawnManagers(GameObject securityRoot, GameObject triggersRoot, GameObject uiRoot)
+    {
         GameObject smObj = new GameObject("SecurityManager");
         smObj.transform.SetParent(securityRoot.transform);
-        smObj.AddComponent<SecurityManager>();
+        var sm = smObj.AddComponent<SecurityManager>();
 
-        // ---- Mission system ----
-        GameObject missionRoot = CreateEmpty("_Mission", Vector3.zero);
+        GameObject cmObj = new GameObject("CredentialManager");
+        cmObj.transform.SetParent(securityRoot.transform);
+        cmObj.AddComponent<CredentialManager>();
+
+        GameObject amObj = new GameObject("AuthenticationService");
+        amObj.transform.SetParent(securityRoot.transform);
+        amObj.AddComponent<AuthenticationService>();
+
+        GameObject azObj = new GameObject("AuthorizationService");
+        azObj.transform.SetParent(securityRoot.transform);
+        var az = azObj.AddComponent<AuthorizationService>();
+        if (_configs["roles"] is RolePermissionsConfig roleCfg)
+            az.SetRoleConfig(roleCfg);
+
+        GameObject imObj = new GameObject("InventoryManager");
+        imObj.transform.SetParent(securityRoot.transform);
+        imObj.AddComponent<InventoryManager>();
+
         GameObject mmObj = new GameObject("MissionManager");
-        mmObj.transform.SetParent(missionRoot.transform);
-        var missionMgr = mmObj.AddComponent<MissionManager>();
+        mmObj.transform.SetParent(triggersRoot.transform);
+        var mm = mmObj.AddComponent<MissionManager>();
+        mm.autoStart = true;
+        mm.objectiveOrder = new List<ObjectiveID>
+        {
+            ObjectiveID.Tutorial_ReachKeycard,
+            ObjectiveID.Tutorial_PickupKeycard,
+            ObjectiveID.Tutorial_OpenDoor,
+            ObjectiveID.Tutorial_SneakPastGuard,
+            ObjectiveID.Tutorial_DisableCamera,
+            ObjectiveID.Tutorial_StealArtifact,
+            ObjectiveID.Tutorial_Escape
+        };
 
-        CreateMissionZone(missionRoot.transform, "Zone_EnterMuseum",   ObjectiveID.EnterMuseum,   new Vector3(0, 1.5f, -20), new Vector3(5, 3, 5));
-        CreateMissionZone(missionRoot.transform, "Zone_ObserveGuard",  ObjectiveID.ObserveGuard,  new Vector3(0, 1.5f, -12), new Vector3(5, 3, 5));
-        CreateMissionZone(missionRoot.transform, "Zone_EnterVault",    ObjectiveID.EnterVault,    new Vector3(0, 1.5f, 12),  new Vector3(5, 3, 5));
-        CreateMissionZone(missionRoot.transform, "Zone_Escape",        ObjectiveID.Escape,        new Vector3(0, 1.5f, 20),  new Vector3(5, 3, 5));
+        GameObject timerObj = new GameObject("CameraDisableTimer");
+        timerObj.transform.SetParent(securityRoot.transform);
+        var timer = timerObj.AddComponent<CameraDisableTimer>();
+        timer.SetPrivateField("eastCameraID", "camera_training");
 
-        // ---- Rooms & corridors ----
-        CreateRoom(roomsRoot.transform, "Entrance",    ROOM_Z[0], true,  false);
-        CreateCorridor(roomsRoot.transform, "Corridor_1", CORRIDOR_Z[0]);
-        CreateRoom(roomsRoot.transform, "Reception",   ROOM_Z[1], false, false);
-        CreateCorridor(roomsRoot.transform, "Corridor_2", CORRIDOR_Z[1]);
-        CreateRoom(roomsRoot.transform, "ExhibitRoom", ROOM_Z[2], false, false);
-        CreateCorridor(roomsRoot.transform, "Corridor_3", CORRIDOR_Z[2]);
-        CreateRoom(roomsRoot.transform, "SecurityRoom",ROOM_Z[3], false, false);
-        CreateCorridor(roomsRoot.transform, "Corridor_4", CORRIDOR_Z[3]);
-        CreateRoom(roomsRoot.transform, "Vault",       ROOM_Z[4], false, false);
-        CreateCorridor(roomsRoot.transform, "Corridor_5", CORRIDOR_Z[4]);
-        CreateRoom(roomsRoot.transform, "Exit",        ROOM_Z[5], false, true);
+        GameObject laptopObj = new GameObject("LaptopController");
+        laptopObj.transform.SetParent(securityRoot.transform);
+        laptopObj.AddComponent<LaptopController>();
 
-        // ---- Guard waypoints ----
+        GameObject checkpointObj = new GameObject("CheckpointManager");
+        checkpointObj.transform.SetParent(triggersRoot.transform);
+        checkpointObj.AddComponent<CheckpointManager>();
+
+        GameObject doorFeedbackObj = new GameObject("DoorUIFeedback");
+        doorFeedbackObj.transform.SetParent(uiRoot.transform);
+        doorFeedbackObj.AddComponent<DoorUIFeedback>();
+
+        GameObject hudObj = new GameObject("MissionHUD");
+        hudObj.transform.SetParent(uiRoot.transform);
+        hudObj.AddComponent<MissionHUD>();
+
+        GameObject debugObj = new GameObject("DebugOverlay");
+        debugObj.transform.SetParent(uiRoot.transform);
+        debugObj.AddComponent<DebugOverlay>();
+
+        GameObject escapeObj = new GameObject("EscapePhaseController");
+        escapeObj.transform.SetParent(triggersRoot.transform);
+        var escape = escapeObj.AddComponent<EscapePhaseController>();
+        escape.SetPrivateField("exitDoorID", "door_training_exit");
+    }
+
+    static void SpawnRooms(GameObject parent)
+    {
+        for (int i = 0; i < ROOM_NAMES.Length; i++)
+        {
+            bool hasBack = (i != 0);
+            bool hasFront = (i != ROOM_NAMES.Length - 1);
+            CreateRoom(parent.transform, ROOM_NAMES[i], ROOM_Z[i],
+                hasBack, hasFront, ROOM_WIDTHS[i], ROOM_DEPTHS[i]);
+        }
+
+        for (int i = 0; i < CORR_Z.Length; i++)
+        {
+            CreateCorridor(parent.transform, "Corridor_" + (i + 1), CORR_Z[i]);
+        }
+    }
+
+    static void SpawnPickups(GameObject parent)
+    {
+        GameObject keycardObj = CreatePrimitive("Keycard_Training", PrimitiveType.Cube,
+            new Vector3(0f, 1f, -9f), new Vector3(0.4f, 0.1f, 0.3f), parent.transform, Color.yellow);
+        UnityEngine.Object.DestroyImmediate(keycardObj.GetComponent<BoxCollider>());
+        var keycard = keycardObj.AddComponent<KeycardItem>();
+        keycardObj.AddComponent<SphereCollider>().isTrigger = true;
+        keycard.SetPrivateField("keycardType", KeycardType.Public);
+
+        GameObject credObj = CreatePrimitive("Credential_Training", PrimitiveType.Cube,
+            new Vector3(0f, 1f, 15f), new Vector3(0.3f, 0.05f, 0.2f), parent.transform, new Color(0f, 1f, 0.4f));
+        UnityEngine.Object.DestroyImmediate(credObj.GetComponent<BoxCollider>());
+        var cred = credObj.AddComponent<CredentialItem>();
+        credObj.AddComponent<SphereCollider>().isTrigger = true;
+        cred.SetPrivateField("credentialID", "tutorial_admin");
+        cred.SetPrivateField("credentialType", CredentialType.Keycard);
+        cred.SetPrivateField("grantedRole", UserRole.Administrator);
+        cred.SetPrivateField("displayName", "Training Credential");
+    }
+
+    static void SpawnDoors(GameObject parent)
+    {
+        CreateDoor(parent.transform, "door_training", 0f, -3f, KeycardType.Public, "Training Door");
+        CreateDoor(parent.transform, "door_training_camera", 3.5f, 15f, KeycardType.Public, "Camera Gate");
+        CreateDoor(parent.transform, "door_training_exit", 0f, 26f, KeycardType.Public, "Training Exit");
+    }
+
+    static void SpawnGuard(GameObject securityRoot, GameObject propsRoot)
+    {
         GameObject wpRoot = CreateEmpty("GuardWaypoints", Vector3.zero, propsRoot.transform);
-        Transform[] waypoints = new Transform[4];
-        waypoints[0] = CreateEmpty("WP1", new Vector3(-1.5f, 0, -13.5f), wpRoot.transform).transform;
-        waypoints[1] = CreateEmpty("WP2", new Vector3( 1.5f, 0, -13.5f), wpRoot.transform).transform;
-        waypoints[2] = CreateEmpty("WP3", new Vector3( 1.5f, 0, -10.5f), wpRoot.transform).transform;
-        waypoints[3] = CreateEmpty("WP4", new Vector3(-1.5f, 0, -10.5f), wpRoot.transform).transform;
+        Vector3[] wpPositions = { new Vector3(-2.5f, 0f, 7f), new Vector3(2.5f, 0f, 7f), new Vector3(2.5f, 0f, 10f) };
+        Transform[] waypoints = new Transform[wpPositions.Length];
+        for (int i = 0; i < wpPositions.Length; i++)
+        {
+            waypoints[i] = CreateEmpty("WP" + (i + 1), wpPositions[i], wpRoot.transform).transform;
+        }
 
-        // ---- Guard (FSM) ----
-        GameObject guardObj = CreatePrimitive("Guard", PrimitiveType.Capsule,
-            new Vector3(-1.5f, 0.5f, -13.5f), new Vector3(0.5f, 1f, 0.5f), guardsRoot.transform, Color.blue);
-        GuardFSM guardFSM = guardObj.AddComponent<GuardFSM>();
-        guardFSM.waypoints = waypoints;
-        guardFSM.patrolSpeed = 2f;
-        guardFSM.patrolRotateSpeed = 5f;
-        guardFSM.loopPatrol = true;
-        guardFSM.visionRange = 10f;
-        guardFSM.visionAngle = 60f;
-        guardFSM.suspicionTime = 2f;
-        guardFSM.suspicionDecayRate = 1f;
-        guardFSM.chaseSpeed = 5f;
-        guardFSM.chaseLostTime = 3f;
-        guardFSM.searchDuration = 5f;
-        guardFSM.investigateSpeed = 3f;
+        GameObject alcove = CreatePrimitive("ShadowAlcove", PrimitiveType.Cube,
+            new Vector3(-3f, 1.5f, 9f), new Vector3(0.1f, 3f, 2.5f), propsRoot.transform,
+            new Color(0.15f, 0.15f, 0.15f));
 
-        SetupGuardAnimator(guardObj, guardFSM);
+        GameObject guardObj = CreatePrimitive("TrainingGuard", PrimitiveType.Capsule,
+            new Vector3(0f, 0.5f, 7f), new Vector3(0.5f, 1f, 0.5f), securityRoot.transform,
+            new Color(0.3f, 0.3f, 0.8f));
+        var fsm = guardObj.AddComponent<GuardFSM>();
+        fsm.waypoints = waypoints;
+        fsm.patrolSpeed = 1.5f;
+        fsm.visionRange = 8f;
+        fsm.visionAngle = 75f;
+        fsm.suspicionTime = 2f;
+        fsm.searchDuration = 3f;
+        fsm.player = null;
+        UnityEngine.Object.DestroyImmediate(guardObj.GetComponent<CapsuleCollider>());
+    }
 
-        // ---- Keycard pickup (Exhibit Room) ----
-        CreatePrimitive("KeycardPedestal", PrimitiveType.Cube,
-            new Vector3(-1.5f, 0.25f, -4), new Vector3(0.5f, 0.1f, 0.5f), propsRoot.transform, Color.gray);
-        GameObject keycardObj = CreatePrimitive("Keycard", PrimitiveType.Cube,
-            new Vector3(-1.5f, 0.5f, -4), new Vector3(0.3f, 0.05f, 0.2f), propsRoot.transform, Color.yellow);
-        KeycardPickup keycardScript = keycardObj.AddComponent<KeycardPickup>();
-        keycardScript.targetDoorID = "door_security";
+    static void SpawnCamera(GameObject parent)
+    {
+        GameObject camObj = CreatePrimitive("TrainingCamera", PrimitiveType.Sphere,
+            new Vector3(0f, 3f, 15f), new Vector3(0.3f, 0.3f, 0.3f), parent.transform, Color.red);
+        UnityEngine.Object.DestroyImmediate(camObj.GetComponent<SphereCollider>());
 
-        // ---- Locked door (blocks Corridor_3 at z = -1.5) ----
-        GameObject doorObj = CreatePrimitive("LockedDoor", PrimitiveType.Cube,
-            new Vector3(0, 1.5f, -1.5f), new Vector3(2.8f, 2.5f, 0.1f), propsRoot.transform, Color.red);
-        LockedDoor doorScript = doorObj.AddComponent<LockedDoor>();
-        doorScript.doorID = "door_security";
-        doorScript.isLocked = true;
-        doorScript.openAngle = 90f;
+        var cam = camObj.AddComponent<SecurityCamera>();
+        cam.SetPrivateField("cameraID", "camera_training");
+        cam.SetPrivateField("config", _configs["camera"] as CameraConfig);
+        if (cam.config != null)
+        {
+            cam.SetPrivateField("rotationAngle", cam.config.patrolAngle);
+            cam.SetPrivateField("rotationSpeed", cam.config.patrolSpeed);
+            cam.SetPrivateField("detectionRange", cam.config.detectionRange);
+            cam.SetPrivateField("fieldOfView", cam.config.fieldOfView);
+        }
+    }
 
-        // ---- Security camera (Security Room) ----
-        GameObject camObj = CreatePrimitive("SecurityCamera", PrimitiveType.Cylinder,
-            new Vector3(0, 2.5f, 4), Vector3.one * 0.3f, propsRoot.transform, Color.red);
-        SecurityCamera camScript = camObj.AddComponent<SecurityCamera>();
-        camScript.cameraID = "camera_security";
-        camScript.rotationAngle = 45f;
-        camScript.rotationSpeed = 30f;
-        camScript.detectionRange = 8f;
-        camScript.fieldOfView = 60f;
-        camScript.isActive = true;
-        // FOV beam visual
-        CreatePrimitive("FOV_Beam", PrimitiveType.Cube,
-            new Vector3(0, 2.5f, 5f), new Vector3(0.05f, 0.05f, 2f), camObj.transform, new Color(1, 0, 0, 0.25f));
+    static void SpawnTerminal(GameObject parent, GameObject securityRoot)
+    {
+        GameObject termObj = CreatePrimitive("TrainingTerminal", PrimitiveType.Cube,
+            new Vector3(-1.5f, 0.75f, 15f), new Vector3(0.8f, 0.1f, 0.6f), parent.transform,
+            new Color(0.1f, 0.1f, 0.12f));
 
-        // ---- Computer terminal (Security Room) ----
-        CreatePrimitive("TerminalDesk", PrimitiveType.Cube,
-            new Vector3(-1.5f, 0.75f, 4), new Vector3(0.8f, 0.1f, 0.6f), propsRoot.transform, Color.gray);
-        CreatePrimitive("TerminalBase", PrimitiveType.Cube,
-            new Vector3(-1.5f, 0.95f, 4), new Vector3(0.3f, 0.05f, 0.3f), propsRoot.transform, Color.gray);
+        GameObject screenObj = CreatePrimitive("Screen", PrimitiveType.Cube,
+            new Vector3(-1.5f, 1.1f, 14.7f), new Vector3(0.6f, 0.4f, 0.05f), termObj.transform,
+            new Color(0f, 0.6f, 0.2f));
 
-        GameObject screenObj = CreatePrimitive("ComputerTerminal", PrimitiveType.Cube,
-            new Vector3(-1.5f, 1.2f, 4.3f), new Vector3(0.5f, 0.35f, 0.05f), propsRoot.transform, Color.gray);
-        ComputerTerminal terminalScript = screenObj.AddComponent<ComputerTerminal>();
-        terminalScript.targetCameraID = "camera_security";
-        terminalScript.screenRenderer = screenObj.GetComponent<MeshRenderer>();
-        terminalScript.screenOnMaterial = CreateMat("ScreenOn", Color.cyan);
-        terminalScript.screenOffMaterial = CreateMat("ScreenOff", new Color(0.15f, 0.15f, 0.15f));
+        var term = termObj.AddComponent<TerminalController>();
+        term.SetPrivateField("terminalID", "terminal_training");
+        term.SetPrivateField("config", _configs["terminal"] as TerminalConfig);
 
-        // ---- Artifact (Vault) ----
-        CreatePrimitive("ArtifactPedestal", PrimitiveType.Cube,
-            new Vector3(0, 0.35f, 12), new Vector3(0.8f, 0.2f, 0.8f), propsRoot.transform, Color.gray);
-        GameObject artifactObj = CreatePrimitive("Artifact", PrimitiveType.Sphere,
-            new Vector3(0, 0.75f, 12), Vector3.one * 0.4f, propsRoot.transform, Color.yellow);
-        artifactObj.AddComponent<ArtifactCollectible>();
+        var termLog = termObj.AddComponent<TerminalLog>();
 
-        // ---- Player ----
-        GameObject ccObj = new GameObject("PlayerController");
-        ccObj.transform.position = new Vector3(0, 1f, -19.5f);
-        ccObj.transform.parent = playerRoot.transform;
-        ccObj.tag = "Player";
+        var connPoint = termObj.AddComponent<TerminalConnectionPoint>();
 
-        CharacterController cc = ccObj.AddComponent<CharacterController>();
+        var consoleUI = securityRoot.GetComponentInChildren<SecurityConsoleUI>();
+        if (consoleUI == null)
+        {
+            GameObject uiObj = new GameObject("SecurityConsoleUI");
+            uiObj.transform.SetParent(securityRoot.transform);
+            consoleUI = uiObj.AddComponent<SecurityConsoleUI>();
+        }
+        term.SetPrivateField("consoleUI", consoleUI);
+    }
+
+    static void SpawnArtifact(GameObject parent)
+    {
+        GameObject artObj = CreatePrimitive("TrainingArtifact", PrimitiveType.Cube,
+            new Vector3(0f, 1f, 23f), new Vector3(0.5f, 0.5f, 0.5f), parent.transform,
+            new Color(1f, 0.8f, 0.2f));
+        UnityEngine.Object.DestroyImmediate(artObj.GetComponent<BoxCollider>());
+        var artifact = artObj.AddComponent<ArtifactCollectible>();
+        artifact.completeObjective = ObjectiveID.Tutorial_StealArtifact;
+        artifact.triggerEscapePhase = true;
+        artObj.AddComponent<SphereCollider>().isTrigger = true;
+    }
+
+    static void SpawnTriggers(GameObject parent)
+    {
+        CreateMissionZone(parent.transform, "Zone_ReachKeycard",
+            ObjectiveID.Tutorial_ReachKeycard, new Vector3(0f, 1.5f, -6f), new Vector3(4f, 3f, 2f));
+        CreateMissionZone(parent.transform, "Zone_SneakPastGuard",
+            ObjectiveID.Tutorial_SneakPastGuard, new Vector3(0f, 1.5f, 11f), new Vector3(4f, 3f, 2f));
+        CreateMissionZone(parent.transform, "Zone_Escape",
+            ObjectiveID.Tutorial_Escape, new Vector3(0f, 1.5f, 25f), new Vector3(5f, 3f, 3f));
+    }
+
+    static void SpawnPlayer(GameObject parent)
+    {
+        GameObject playerObj = new GameObject("PlayerController");
+        playerObj.transform.SetParent(parent.transform);
+        playerObj.transform.position = new Vector3(0f, 1f, -12f);
+
+        var cc = playerObj.AddComponent<CharacterController>();
         cc.height = 1.8f;
-        cc.radius = 0.4f;
+        cc.radius = 0.3f;
 
-        ccObj.AddComponent<PlayerController>();
+        GameObject camObj = new GameObject("PlayerCamera");
+        camObj.transform.SetParent(playerObj.transform);
+        camObj.transform.localPosition = new Vector3(0f, 0.6f, 0f);
+        var cam = camObj.AddComponent<Camera>();
+        cam.fieldOfView = 90f;
+        cam.nearClipPlane = 0.1f;
 
-        GameObject camGO = new GameObject("PlayerCamera");
-        camGO.transform.parent = ccObj.transform;
-        camGO.transform.localPosition = new Vector3(0, 0.7f, 0);
-        camGO.AddComponent<Camera>().nearClipPlane = 0.1f;
-        camGO.AddComponent<AudioListener>();
-        PlayerInteraction interaction = camGO.AddComponent<PlayerInteraction>();
-        interaction.interactionRange = 3f;
-        interaction.interactKey = KeyCode.E;
+        playerObj.tag = "Player";
 
-        // ---- Lights ----
-        GameObject dirLight = CreateLight("Directional Light", LightType.Directional,
-            new Vector3(0, 10, 0), Color.white, lightsRoot.transform);
-        dirLight.GetComponent<Light>().intensity = 1f;
-        dirLight.transform.eulerAngles = new Vector3(50, -30, 0);
-
-        string[] roomNames = { "Entrance", "Reception", "Exhibit", "Security", "Vault", "Exit" };
-        for (int i = 0; i < 6; i++)
-            CreateLight("PointLight_" + roomNames[i], LightType.Point,
-                new Vector3(0, 2.5f, ROOM_Z[i]), new Color(0.9f, 0.9f, 1f), lightsRoot.transform).GetComponent<Light>().range = 8f;
-
-        // ---- NavMesh ----
-        SetupNavMesh();
-
-        // ---- Save ----
-        Directory.CreateDirectory(Application.dataPath + "/Scenes");
-        EditorSceneManager.SaveScene(SceneManager.GetActiveScene(), "Assets/Scenes/TutorialLevel.unity");
-        Debug.Log("Tutorial Level generated successfully!  Tools -> Generate Tutorial Level");
+        var playerController = playerObj.AddComponent<PlayerController>();
+        var interaction = playerObj.AddComponent<PlayerInteraction>();
     }
 
-    // ---------------------------------------------------------------
-    //  Helpers
-    // ---------------------------------------------------------------
-
-    static GameObject CreateEmpty(string name, Vector3 position)
+    static void SpawnLights(GameObject parent)
     {
-        GameObject go = new GameObject(name);
-        go.transform.position = position;
-        return go;
-    }
+        GameObject ambient = new GameObject("AmbientLight");
+        var light = ambient.AddComponent<Light>();
+        light.type = LightType.Directional;
+        light.intensity = 0.4f;
+        light.color = new Color(0.7f, 0.7f, 0.8f);
+        light.transform.rotation = Quaternion.Euler(50f, -30f, 0f);
 
-    static GameObject CreateEmpty(string name, Vector3 position, Transform parent)
-    {
-        GameObject go = CreateEmpty(name, position);
-        go.transform.SetParent(parent);
-        return go;
-    }
+        GameObject keycardSpot = new GameObject("KeycardSpotlight");
+        var spot = keycardSpot.AddComponent<Light>();
+        spot.type = LightType.Spot;
+        spot.range = 8f;
+        spot.spotAngle = 30f;
+        spot.intensity = 1.5f;
+        spot.color = Color.white;
+        spot.transform.position = new Vector3(0f, 4f, -9f);
+        spot.transform.rotation = Quaternion.Euler(90f, 0f, 0f);
 
-    static Material CreateMat(string name, Color color)
-    {
-        string key = name;
-        if (_materials.ContainsKey(key)) return _materials[key];
-
-        string path = "Assets/Materials/Generated/" + name + ".mat";
-        Material existing = AssetDatabase.LoadAssetAtPath<Material>(path);
-        if (existing != null)
-        {
-            _materials[key] = existing;
-            return existing;
-        }
-
-        Material mat = new Material(Shader.Find("Standard"));
-        mat.color = color;
-        mat.name = name;
-
-        if (color.a < 1f)
-        {
-            mat.SetFloat("_Mode", 3);
-            mat.SetInt("_SrcBlend", (int)UnityEngine.Rendering.BlendMode.SrcAlpha);
-            mat.SetInt("_DstBlend", (int)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
-            mat.SetInt("_ZWrite", 0);
-            mat.DisableKeyword("_ALPHATEST_ON");
-            mat.EnableKeyword("_ALPHABLEND_ON");
-            mat.DisableKeyword("_ALPHAPREMULTIPLY_ON");
-            mat.renderQueue = 3000;
-        }
-
-        Directory.CreateDirectory(Application.dataPath + "/Materials/Generated");
-        AssetDatabase.CreateAsset(mat, path);
-        _materials[key] = mat;
-        return mat;
-    }
-
-    static GameObject CreatePrimitive(string name, PrimitiveType type,
-        Vector3 position, Vector3 scale, Transform parent, Color color)
-    {
-        GameObject go = GameObject.CreatePrimitive(type);
-        go.name = name;
-        go.transform.position = position;
-        go.transform.localScale = scale;
-        go.transform.SetParent(parent);
-        go.GetComponent<Renderer>().material = CreateMat(name + "_mat", color);
-        return go;
+        GameObject credSpot = new GameObject("CredentialSpotlight");
+        var spot2 = credSpot.AddComponent<Light>();
+        spot2.type = LightType.Spot;
+        spot2.range = 6f;
+        spot2.spotAngle = 25f;
+        spot2.intensity = 1.2f;
+        spot2.color = new Color(0f, 1f, 0.4f);
+        spot2.transform.position = new Vector3(0f, 4f, 15f);
+        spot2.transform.rotation = Quaternion.Euler(90f, 0f, 0f);
     }
 
     static void CreateRoom(Transform parent, string name, float zCenter,
-        bool hasBackWall, bool hasFrontWall, float w = ROOM_WIDTH, float d = ROOM_DEPTH)
+        bool hasBack, bool hasFront, float w, float d)
     {
         GameObject room = CreateEmpty(name, Vector3.zero, parent);
-        float hw = w / 2f, hd = d / 2f, hh = ROOM_HEIGHT / 2f;
+        float hw = w / 2f, hd = d / 2f, hh = ROOM_H / 2f;
+        Color c = Color.gray;
 
-        string roomColor = name.ToLower().Contains("exit") ? "white" : "gray";
-        Color c = roomColor == "white" ? Color.white : Color.gray;
-
-        CreatePrimitive("Floor",   PrimitiveType.Cube, new Vector3(0, FLOOR_T / 2f, zCenter),   new Vector3(w, FLOOR_T, d),     room.transform, c);
-        CreatePrimitive("Ceiling", PrimitiveType.Cube, new Vector3(0, ROOM_HEIGHT - FLOOR_T / 2f, zCenter), new Vector3(w, FLOOR_T, d), room.transform, c);
-        CreatePrimitive("LeftWall",  PrimitiveType.Cube, new Vector3(-hw, hh, zCenter), new Vector3(WALL_T, ROOM_HEIGHT, d), room.transform, c);
-        CreatePrimitive("RightWall", PrimitiveType.Cube, new Vector3( hw, hh, zCenter), new Vector3(WALL_T, ROOM_HEIGHT, d), room.transform, c);
-
-        if (hasBackWall)
-            CreatePrimitive("BackWall", PrimitiveType.Cube, new Vector3(0, hh, zCenter - hd), new Vector3(w, ROOM_HEIGHT, WALL_T), room.transform, c);
-        if (hasFrontWall)
-            CreatePrimitive("FrontWall", PrimitiveType.Cube, new Vector3(0, hh, zCenter + hd), new Vector3(w, ROOM_HEIGHT, WALL_T), room.transform, c);
+        CreatePrimitive("Floor", PrimitiveType.Cube, new Vector3(0, FLOOR_T / 2f, zCenter),
+            new Vector3(w, FLOOR_T, d), room.transform, c);
+        CreatePrimitive("Ceiling", PrimitiveType.Cube, new Vector3(0, ROOM_H - FLOOR_T / 2f, zCenter),
+            new Vector3(w, FLOOR_T, d), room.transform, c);
+        CreatePrimitive("LeftWall", PrimitiveType.Cube, new Vector3(-hw, hh, zCenter),
+            new Vector3(WALL_T, ROOM_H, d), room.transform, c);
+        CreatePrimitive("RightWall", PrimitiveType.Cube, new Vector3(hw, hh, zCenter),
+            new Vector3(WALL_T, ROOM_H, d), room.transform, c);
+        if (hasBack)
+            CreatePrimitive("BackWall", PrimitiveType.Cube, new Vector3(0, hh, zCenter - hd),
+                new Vector3(w, ROOM_H, WALL_T), room.transform, c);
+        if (hasFront)
+            CreatePrimitive("FrontWall", PrimitiveType.Cube, new Vector3(0, hh, zCenter + hd),
+                new Vector3(w, ROOM_H, WALL_T), room.transform, c);
     }
 
     static void CreateCorridor(Transform parent, string name, float zCenter)
     {
-        CreateRoom(parent, name, zCenter, false, false, CORRIDOR_WIDTH, CORRIDOR_DEPTH);
+        CreateRoom(parent, name, zCenter, false, false, CORR_W, CORR_D);
     }
 
-    static GameObject CreateLight(string name, LightType type, Vector3 position, Color color, Transform parent)
+    static void CreateDoor(Transform parent, string id, float x, float z, KeycardType keycard, string name)
     {
-        GameObject go = new GameObject(name);
-        go.transform.position = position;
-        go.transform.SetParent(parent);
-        Light l = go.AddComponent<Light>();
-        l.type = type;
-        l.color = color;
-        l.intensity = 0.7f;
-        return go;
+        GameObject doorObj = CreatePrimitive("Door_" + name, PrimitiveType.Cube,
+            new Vector3(x, 1.5f, z), new Vector3(2.5f, 2.8f, 0.12f), parent, Color.red);
+        BoxCollider bc = doorObj.GetComponent<BoxCollider>();
+        if (bc != null) bc.isTrigger = false;
+
+        var door = doorObj.AddComponent<DoorController>();
+        door.AssignConfig(CreateDoorConfig(name, keycard));
+        door.SetPrivateField("doorID", id);
+
+        GameObject indicator = CreatePrimitive("LockIndicator", PrimitiveType.Cube,
+            new Vector3(x + 1.5f, 1.5f, z), new Vector3(0.15f, 0.15f, 0.05f), doorObj.transform,
+            Color.red);
+    }
+
+    static DoorConfig CreateDoorConfig(string doorName, KeycardType keycard)
+    {
+        string key = "doorcfg_" + doorName;
+        if (_configs.TryGetValue(key, out var existing)) return (DoorConfig)existing;
+
+        var cfg = ScriptableObject.CreateInstance<DoorConfig>();
+        cfg.doorName = doorName;
+        cfg.requiredKeycard = keycard;
+        cfg.startsLocked = true;
+        cfg.openSpeed = 120f;
+        cfg.closeSpeed = 120f;
+        cfg.openAngle = 90f;
+        cfg.canAutoClose = false;
+        cfg.lockOnAlert = false;
+        cfg.lockDuringLockdown = false;
+
+        string path = "Assets/Config/Tutorial/Doors/" + doorName.Replace(" ", "") + "DoorConfig.asset";
+        var existingAsset = AssetDatabase.LoadAssetAtPath<DoorConfig>(path);
+        if (existingAsset != null)
+        {
+            _configs[key] = existingAsset;
+            return existingAsset;
+        }
+
+        AssetDatabase.CreateAsset(cfg, path);
+        _configs[key] = cfg;
+        return cfg;
     }
 
     static void CreateMissionZone(Transform parent, string name, ObjectiveID id, Vector3 position, Vector3 size)
     {
         GameObject zone = new GameObject(name);
-        zone.transform.position = position;
         zone.transform.SetParent(parent);
-        BoxCollider bc = zone.AddComponent<BoxCollider>();
-        bc.size = size;
+        zone.transform.position = position;
+
+        var bc = zone.AddComponent<BoxCollider>();
         bc.isTrigger = true;
-        MissionZone mz = zone.AddComponent<MissionZone>();
+        bc.size = size;
+
+        var mz = zone.AddComponent<MissionZone>();
         mz.objectiveID = id;
+        mz.oneShot = true;
     }
 
-    // ---------------------------------------------------------------
-    //  Guard Animator
-    // ---------------------------------------------------------------
-
-    static void SetupGuardAnimator(GameObject guardObj, GuardFSM guardFSM)
+    static GameObject CreatePrimitive(string name, PrimitiveType type, Vector3 position, Vector3 scale, Transform parent, Color color)
     {
-        string dir = "Assets/Materials/Generated";
-        Directory.CreateDirectory(Application.dataPath + "/Materials/Generated");
+        GameObject go = GameObject.CreatePrimitive(type);
+        go.name = name;
+        go.transform.SetParent(parent);
+        go.transform.position = position;
+        go.transform.localScale = scale;
 
-        // --- create placeholder clips ---
-        var clips = new (string name, float length)[]
+        var renderer = go.GetComponent<Renderer>();
+        if (renderer != null)
         {
-            ("Guard_Idle",   1f),
-            ("Guard_Walk",   0.8f),
-            ("Guard_Run",    0.4f),
-            ("Guard_Search", 2f),
-            ("Guard_Alert",  1f),
-        };
-
-        var animClips = new List<AnimationClip>();
-        foreach (var (name, length) in clips)
-        {
-            var c = new AnimationClip { name = name };
-            c.SetCurve("", typeof(Transform), "localPosition.x",
-                AnimationCurve.Constant(0f, length, 0f));
-            c.wrapMode = WrapMode.Loop;
-            var s = AnimationUtility.GetAnimationClipSettings(c);
-            s.loopTime = true;
-            AnimationUtility.SetAnimationClipSettings(c, s);
-            animClips.Add(c);
+            string colorKey = "mat_" + color.ToString();
+            if (!_materials.TryGetValue(colorKey, out Material mat))
+            {
+                mat = new Material(Shader.Find("Universal Render Pipeline/Lit"));
+                mat.color = color;
+                _materials[colorKey] = mat;
+            }
+            renderer.sharedMaterial = mat;
         }
 
-        // --- create controller ---
-        var controller = new AnimatorController();
-        controller.name = "Guard_AnimatorController";
-        controller.AddParameter("State", AnimatorControllerParameterType.Int);
-
-        if (controller.layers.Length == 0)
-            controller.AddLayer("Base Layer");
-
-        var sm = controller.layers[0].stateMachine;
-
-        // state values must match GuardFSM.AnimState enum
-        var states = new (string name, int value)[]
-        {
-            ("Idle",   0),
-            ("Walk",   1),
-            ("Run",    2),
-            ("Search", 3),
-            ("Alert",  4),
-        };
-
-        for (int i = 0; i < states.Length; i++)
-        {
-            var asm = sm.AddState(states[i].name);
-            asm.motion = animClips[i];
-            if (i == 0) sm.defaultState = asm;
-
-            var t = sm.AddAnyStateTransition(asm);
-            t.AddCondition(AnimatorConditionMode.Equals, states[i].value, "State");
-            t.duration = 0.12f;
-            t.hasExitTime = false;
-        }
-
-        // --- save assets ---
-        string ctrlPath = dir + "/Guard_AnimatorController.controller";
-        AssetDatabase.CreateAsset(controller, ctrlPath);
-        foreach (var c in animClips)
-            AssetDatabase.AddObjectToAsset(c, ctrlPath);
-        AssetDatabase.SaveAssets();
-
-        // --- Animator component ---
-        var animator = guardObj.AddComponent<Animator>();
-        animator.runtimeAnimatorController = controller;
-        animator.applyRootMotion = false;
-        animator.updateMode = AnimatorUpdateMode.Normal;
-
-        guardFSM.animator = animator;
-        guardFSM.guardRenderer = guardObj.GetComponent<Renderer>();
+        return go;
     }
 
-    // ---------------------------------------------------------------
-    //  NavMesh  (graceful fallback if Unity.AI.Navigation missing)
-    // ---------------------------------------------------------------
-
-    static void SetupNavMesh()
+    static GameObject CreateEmpty(string name, Vector3 position, Transform parent = null)
     {
-        System.Type surfaceType = System.Type.GetType(
-            "Unity.AI.Navigation.NavMeshSurface, Unity.AI.Navigation");
-        if (surfaceType == null)
-        {
-            Debug.Log("NavMesh: Unity.AI.Navigation package not found. " +
-                      "Install via Window -> Package Manager, then re-run generator.");
-            return;
-        }
-
-        GameObject navRoot = new GameObject("_NavMesh");
-        var surface = navRoot.AddComponent(surfaceType);
-
-        var collectProp = surfaceType.GetProperty("collectObjects");
-        var enumType = surfaceType.Assembly.GetType("Unity.AI.Navigation.CollectObjects");
-        collectProp.SetValue(surface, System.Enum.ToObject(enumType, 0)); // CollectObjects.All
-
-        var bakeMethod = surfaceType.GetMethod("BakeNavMesh");
-        bakeMethod.Invoke(surface, null);
-
-        Debug.Log("NavMesh baked successfully.");
+        GameObject go = new GameObject(name);
+        if (parent != null) go.transform.SetParent(parent);
+        go.transform.position = position;
+        return go;
     }
 }
