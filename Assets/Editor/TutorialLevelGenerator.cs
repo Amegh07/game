@@ -361,7 +361,7 @@ public class TutorialLevelGenerator
             if (i == 0) sm.defaultState = asm;
 
             var t = sm.AddAnyStateTransition(asm);
-            t.AddCondition("State", AnimatorConditionMode.Equals, states[i].value);
+            t.AddCondition(AnimatorConditionMode.Equals, states[i].value, "State");
             t.duration = 0.12f;
             t.hasExitTime = false;
         }
