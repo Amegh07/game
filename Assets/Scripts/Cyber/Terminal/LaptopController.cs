@@ -15,10 +15,6 @@ namespace MuseumHeist.Cyber
             Instance = this;
         }
 
-        void OnDestroy()
-        {
-            if (Instance == this) Instance = null;
-        }
         public TerminalController ConnectedTerminal { get; private set; }
 
         public event System.Action<TerminalController> OnConnected;
@@ -89,6 +85,7 @@ namespace MuseumHeist.Cyber
 
         void OnDestroy()
         {
+            if (Instance == this) Instance = null;
             if (IsConnected)
                 ForceDisconnect();
         }
