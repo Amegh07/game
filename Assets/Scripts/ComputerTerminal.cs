@@ -26,11 +26,13 @@ public class ComputerTerminal : MonoBehaviour, IInteractable
             screenRenderer.material = screenOnMaterial;
     }
 
-    public void Interact()
+    public void Interact(PlayerController player)
     {
-        if (hasBeenUsed) return;
+        if (!CanInteract(player)) return;
 
         hasBeenUsed = true;
+
+        NoiseManager.EmitAt(transform.position, 6f, 0.4f, NoiseType.Interaction, gameObject);
 
         if (SecurityManager.Instance != null && !string.IsNullOrEmpty(targetCameraID))
         {
@@ -48,4 +50,17 @@ public class ComputerTerminal : MonoBehaviour, IInteractable
         if (indicatorLight != null)
             indicatorLight.color = Color.green;
     }
+
+    public bool CanInteract(PlayerController player)
+    {
+        return !hasBeenUsed;
+    }
+
+    public string GetInteractionPrompt()
+    {
+        return "Disable Camera";
+    }
+
+    public void OnFocus() { }
+    public void OnLoseFocus() { }
 }

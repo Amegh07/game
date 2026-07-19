@@ -794,17 +794,61 @@ At 4h/day (evenings + weekends), this is **17 days** of work.
 
 ---
 
+---
+
+## PHASE 5A — POST-REVIEW GAMEPLAY ENHANCEMENTS
+
+The following features were implemented after the initial review:
+
+### Elite Guard (`GuardFSM.isElite`)
+- New `isElite` bool field on GuardFSM; when true, overrides patrol speed (2.5+), vision range (14m), FOV (80°), suspicion time (1.2s), chase speed (6.5), and hearing radius (18m).
+- One elite guard placed in the vault antechamber with a 5-waypoint patrol loop.
+- Rendered in dark red to distinguish from standard blue guards.
+
+### Checkpoints (`CheckpointTrigger`)
+- New `CheckpointTrigger` MonoBehaviour: box collider trigger that saves progress when the player enters the zone.
+- `CheckpointManager` extended with `RegisterCheckpoint()` and `ForceCheckpoint()` for runtime checkpoint registration.
+- 4 checkpoints placed: Lobby, Security Office, Vault Corridor entrance, and Escape zone.
+
+### Camera Network Disable (`DisableCameraGroup`)
+- `SecurityManager.DisableCameraGroup(string[] ids)` disables multiple cameras at once and returns the count.
+- New `DisableCameraGroupAction` terminal action parses semicolon-delimited camera IDs from `TargetID`.
+- Registered at level start via `ActionExecutor.RegisterAction("DisableCameraGroup", ...)`.
+- Security Office terminal now offers "Disable Camera Network (East+West)" — disables `camera_east`, `camera_west`, and `camera_lobby` simultaneously.
+
+### Mission Scoring (`MissionScorer`)
+- New singleton tracks: camera detections, guard encounters, alarms triggered, mission completion time, and secondary objective completion.
+- Subscribes to `SecurityManager.OnTriggerReported` and `MissionManager.OnMissionCompleted`.
+- Rating tiers: S (95+), A (75+), B (50+), C (25+), D (<25).
+- Score deduction: -15 per camera detection, -20 per guard encounter, -25 per alarm, -2 per 10s over time limit.
+
+### HUD Enhancements (`MissionHUD`)
+- **Stealth Indicator**: Eye icon in bottom-right shows visibility level (green=hidden, yellow=cautious, red=detected). Scans nearby guards and cameras within 12m.
+- **Detection Meter**: Center-screen progress bar when a guard or camera is building detection. Shows source ("GUARD", "CAMERA") and flashes "DETECTED!" when full.
+- Both indicators use the existing OnGUI system and can be migrated to Canvas/TMP in a future pass.
+
+### Results Screen (`ResultsScreen`)
+- New OnGUI panel that appears after `OnMissionCompleted` with a 1.5s delay.
+- Displays: rating letter (S/A/B/C/D) with color, descriptive label, stat breakdown (detections, alarms, time, secondary objectives).
+- Dismissed with Space key.
+
+### Scoring Update
+- `MissionScorer.StartScoring()` is triggered by the first `OnObjectiveStarted` event from MissionManager.
+- Bootstrapped via `GameBootstrapper` as a singleton alongside existing managers.
+
+---
+
 ## FINAL SCORECARD
 
 | Category | Score (1–10) | Verdict |
 |---|---|---|
 | **Architecture** | 6 | Solid patterns undermined by singleton coupling and reflection hack |
-| **Gameplay** | 7 | Core loop works. Terminal system is genuinely good. Lacks fail states and player agency |
+| **Gameplay** | 7.5 | Elite guard, checkpoints, scoring, camera network, and results screen added post-review. Still lacks fail states and player agency |
 | **Performance** | 5 | OnGUI and GetComponent spam will cause visible hitches. Fixable in a day |
 | **Visuals** | 2 | No lighting, no post-processing, no atmosphere. Looks like a greybox |
 | **Audio** | 0 | Complete absence. Single biggest impact investment |
-| **UX** | 3 | No menus, no pause, OnGUI text. Functional but joyless |
-| **AI** | 5 | Functional FSM but shallow. No coordination, no alarm awareness, no adaptation |
+| **UX** | 4 | HUD enhancements (stealth indicator, detection meter, results screen) improve feedback. OnGUI remains |
+| **AI** | 5.5 | Elite guard variant adds depth. Standard guards still lack coordination and alarm awareness |
 | **Code Quality** | 5 | Inconsistent. Some files are excellent, others are production-dangerous |
 | **Presentation** | 3 | Cannot submit in current state. Missing main menu, audio, lighting, and UI framework |
 | **Cybersecurity (bonus)** | 8 | Genuine standout. Multi-step auth + RBAC is above final-year expectations |

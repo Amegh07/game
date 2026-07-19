@@ -26,11 +26,110 @@ namespace MuseumHeist.Cyber
         private const float HEADER_HEIGHT = 50f;
         private const float LOG_HEIGHT = 180f;
 
+        private GUIStyle s_header22;
+        private GUIStyle s_alarm;
+        private GUIStyle s_label13;
+        private GUIStyle s_value13Bold;
+        private GUIStyle s_empty12;
+        private GUIStyle s_actionBtn;
+        private GUIStyle s_actionBtnHover;
+        private GUIStyle s_desc10;
+        private GUIStyle s_logHeader;
+        private GUIStyle s_logEntry11;
+        private GUIStyle s_status;
+        private GUIStyle s_footer10;
+
         public bool IsVisible => isVisible;
 
         void OnEnable()
         {
             Hide();
+            InitStyles();
+        }
+
+        private void InitStyles()
+        {
+            s_header22 = new GUIStyle()
+            {
+                fontSize = 22,
+                fontStyle = FontStyle.Bold,
+                alignment = TextAnchor.MiddleLeft
+            };
+            s_header22.normal.textColor = accentColor;
+
+            s_alarm = new GUIStyle()
+            {
+                fontSize = 14,
+                fontStyle = FontStyle.Bold,
+                alignment = TextAnchor.MiddleRight
+            };
+            s_alarm.normal.textColor = textColor;
+
+            s_label13 = new GUIStyle()
+            {
+                fontSize = 13,
+                alignment = TextAnchor.UpperLeft
+            };
+            s_label13.normal.textColor = textColor;
+
+            s_value13Bold = new GUIStyle()
+            {
+                fontSize = 13,
+                fontStyle = FontStyle.Bold,
+                alignment = TextAnchor.UpperLeft
+            };
+            s_value13Bold.normal.textColor = successColor;
+
+            s_empty12 = new GUIStyle()
+            {
+                fontSize = 12,
+                alignment = TextAnchor.MiddleCenter
+            };
+            s_empty12.normal.textColor = mutedColor;
+
+            s_actionBtn = new GUIStyle()
+            {
+                fontSize = 12,
+                alignment = TextAnchor.MiddleLeft
+            };
+            s_actionBtn.normal.textColor = textColor;
+            s_actionBtn.normal.background = MakeTex(2, 2, new Color(0.15f, 0.15f, 0.2f));
+            s_actionBtn.hover.textColor = Color.white;
+            s_actionBtn.hover.background = MakeTex(2, 2, new Color(0.2f, 0.25f, 0.35f));
+
+            s_desc10 = new GUIStyle()
+            {
+                fontSize = 10,
+                alignment = TextAnchor.MiddleRight
+            };
+            s_desc10.normal.textColor = mutedColor;
+
+            s_logHeader = new GUIStyle()
+            {
+                fontSize = 13
+            };
+            s_logHeader.normal.textColor = textColor;
+
+            s_logEntry11 = new GUIStyle()
+            {
+                fontSize = 11,
+                alignment = TextAnchor.UpperLeft
+            };
+            s_logEntry11.normal.textColor = textColor;
+
+            s_status = new GUIStyle()
+            {
+                fontSize = 13,
+                alignment = TextAnchor.LowerCenter
+            };
+            s_status.normal.textColor = accentColor;
+
+            s_footer10 = new GUIStyle()
+            {
+                fontSize = 10,
+                alignment = TextAnchor.LowerRight
+            };
+            s_footer10.normal.textColor = mutedColor;
         }
 
         public void Show(TerminalController terminal)
@@ -116,12 +215,6 @@ namespace MuseumHeist.Cyber
         {
             Rect headerRect = new Rect(PANEL_MARGIN, 10, Screen.width - PANEL_MARGIN * 2, HEADER_HEIGHT);
 
-            GUIStyle style = new GUIStyle(GUI.skin.label);
-            style.fontSize = 22;
-            style.fontStyle = FontStyle.Bold;
-            style.normal.textColor = accentColor;
-            style.alignment = TextAnchor.MiddleLeft;
-
             string terminalName = activeTerminal.Config != null
                 ? activeTerminal.Config.terminalName
                 : activeTerminal.TerminalID;
@@ -152,17 +245,15 @@ namespace MuseumHeist.Cyber
                         alarmText = "LOCKDOWN";
                         alarmColor = "#a24";
                         break;
+                    case SecurityManager.AlarmLevel.Recovery:
+                        alarmText = "RECOVERING";
+                        alarmColor = "#4aa";
+                        break;
                 }
             }
 
-            GUI.Label(headerRect, $"  MUSEUM SECURITY CONSOLE  |  {terminalName}", style);
-
-            GUIStyle alarmStyle = new GUIStyle(GUI.skin.label);
-            alarmStyle.fontSize = 14;
-            alarmStyle.fontStyle = FontStyle.Bold;
-            alarmStyle.alignment = TextAnchor.MiddleRight;
-            alarmStyle.normal.textColor = textColor;
-            GUI.Label(headerRect, $"ALARM: <color={alarmColor}>{alarmText}</color>  |  {accessLevel}", alarmStyle);
+            GUI.Label(headerRect, $"  MUSEUM SECURITY CONSOLE  |  {terminalName}", s_header22);
+            GUI.Label(headerRect, $"ALARM: <color={alarmColor}>{alarmText}</color>  |  {accessLevel}", s_alarm);
 
             DrawHorizontalLine(PANEL_MARGIN, HEADER_HEIGHT + 14, Screen.width - PANEL_MARGIN * 2, accentColor);
         }
@@ -179,42 +270,31 @@ namespace MuseumHeist.Cyber
 
             NetworkSession session = activeTerminal.CurrentSession;
 
-            GUIStyle labelStyle = new GUIStyle(GUI.skin.label);
-            labelStyle.fontSize = 13;
-            labelStyle.normal.textColor = textColor;
-            labelStyle.alignment = TextAnchor.UpperLeft;
+            GUI.Label(new Rect(panelX + 10, panelY + 8, panelWidth - 20, 20), "SESSION", s_label13);
 
-            GUIStyle valueStyle = new GUIStyle(GUI.skin.label);
-            valueStyle.fontSize = 13;
-            valueStyle.fontStyle = FontStyle.Bold;
-            valueStyle.normal.textColor = successColor;
-            valueStyle.alignment = TextAnchor.UpperLeft;
-
-            GUI.Label(new Rect(panelX + 10, panelY + 8, panelWidth - 20, 20), "SESSION", labelStyle);
-
-            labelStyle.normal.textColor = mutedColor;
-            GUI.Label(new Rect(panelX + 10, panelY + 30, 80, 20), "User:", labelStyle);
-            valueStyle.normal.textColor = textColor;
+            s_label13.normal.textColor = mutedColor;
+            GUI.Label(new Rect(panelX + 10, panelY + 30, 80, 20), "User:", s_label13);
+            s_value13Bold.normal.textColor = textColor;
             GUI.Label(new Rect(panelX + 100, panelY + 30, panelWidth - 110, 20),
-                session?.UserName ?? "—", valueStyle);
+                session?.UserName ?? "—", s_value13Bold);
 
-            labelStyle.normal.textColor = mutedColor;
-            GUI.Label(new Rect(panelX + 10, panelY + 52, 80, 20), "Role:", labelStyle);
-            valueStyle.normal.textColor = accentColor;
+            s_label13.normal.textColor = mutedColor;
+            GUI.Label(new Rect(panelX + 10, panelY + 52, 80, 20), "Role:", s_label13);
+            s_value13Bold.normal.textColor = accentColor;
             GUI.Label(new Rect(panelX + 100, panelY + 52, panelWidth - 110, 20),
-                session != null ? session.Role.ToString() : "—", valueStyle);
+                session != null ? session.Role.ToString() : "—", s_value13Bold);
 
-            labelStyle.normal.textColor = mutedColor;
-            GUI.Label(new Rect(panelX + 10, panelY + 74, 80, 20), "Status:", labelStyle);
-            valueStyle.normal.textColor = activeTerminal.IsConnected ? successColor : failureColor;
+            s_label13.normal.textColor = mutedColor;
+            GUI.Label(new Rect(panelX + 10, panelY + 74, 80, 20), "Status:", s_label13);
+            s_value13Bold.normal.textColor = activeTerminal.IsConnected ? successColor : failureColor;
             GUI.Label(new Rect(panelX + 100, panelY + 74, panelWidth - 110, 20),
-                activeTerminal.IsConnected ? "Connected" : "Disconnected", valueStyle);
+                activeTerminal.IsConnected ? "Connected" : "Disconnected", s_value13Bold);
 
             string permCount = session != null ? session.Permissions.Count.ToString() : "0";
-            labelStyle.normal.textColor = mutedColor;
-            GUI.Label(new Rect(panelX + 10, panelY + 96, 80, 20), "Perms:", labelStyle);
-            valueStyle.normal.textColor = textColor;
-            GUI.Label(new Rect(panelX + 100, panelY + 96, panelWidth - 110, 20), permCount, valueStyle);
+            s_label13.normal.textColor = mutedColor;
+            GUI.Label(new Rect(panelX + 10, panelY + 96, 80, 20), "Perms:", s_label13);
+            s_value13Bold.normal.textColor = textColor;
+            GUI.Label(new Rect(panelX + 100, panelY + 96, panelWidth - 110, 20), permCount, s_value13Bold);
         }
 
         private void DrawActionPanel()
@@ -227,21 +307,15 @@ namespace MuseumHeist.Cyber
             Rect panelRect = new Rect(panelX, panelY, panelWidth, panelHeight);
             DrawPanelBackground(panelRect);
 
-            GUIStyle headerStyle = new GUIStyle(GUI.skin.label);
-            headerStyle.fontSize = 13;
-            headerStyle.normal.textColor = textColor;
-            GUI.Label(new Rect(panelX + 10, panelY + 8, panelWidth - 20, 20), "AVAILABLE ACTIONS", headerStyle);
+            s_label13.normal.textColor = textColor;
+            GUI.Label(new Rect(panelX + 10, panelY + 8, panelWidth - 20, 20), "AVAILABLE ACTIONS", s_label13);
 
             List<TerminalActionEntry> actions = activeTerminal.GetAuthorizedActions();
 
             if (actions.Count == 0)
             {
-                GUIStyle emptyStyle = new GUIStyle(GUI.skin.label);
-                emptyStyle.fontSize = 12;
-                emptyStyle.normal.textColor = mutedColor;
-                emptyStyle.alignment = TextAnchor.MiddleCenter;
                 GUI.Label(new Rect(panelX, panelY + 30, panelWidth, panelHeight - 30),
-                    "No actions available for your role.", emptyStyle);
+                    "No actions available for your role.", s_empty12);
                 return;
             }
 
@@ -250,31 +324,19 @@ namespace MuseumHeist.Cyber
             float buttonSpacing = 4f;
             float buttonWidth = panelWidth - 20f;
 
-            GUIStyle actionStyle = new GUIStyle(GUI.skin.button);
-            actionStyle.fontSize = 12;
-            actionStyle.alignment = TextAnchor.MiddleLeft;
-            actionStyle.normal.textColor = textColor;
-            actionStyle.hover.textColor = Color.white;
-            actionStyle.normal.background = MakeTex(2, 2, new Color(0.15f, 0.15f, 0.2f));
-            actionStyle.hover.background = MakeTex(2, 2, new Color(0.2f, 0.25f, 0.35f));
-
             foreach (var action in actions)
             {
                 Rect btnRect = new Rect(panelX + 10, buttonY, buttonWidth, buttonHeight);
 
-                if (GUI.Button(btnRect, $"  {action.displayName}"))
+                if (GUI.Button(btnRect, $"  {action.displayName}", s_actionBtn))
                 {
                     activeTerminal.ExecuteAction(action);
                     statusMessage = $"Executing: {action.displayName}...";
                     statusTimer = 3f;
                 }
 
-                GUIStyle descStyle = new GUIStyle(GUI.skin.label);
-                descStyle.fontSize = 10;
-                descStyle.normal.textColor = mutedColor;
-                descStyle.alignment = TextAnchor.MiddleRight;
                 GUI.Label(new Rect(btnRect.x + 180, btnRect.y, btnRect.width - 190, btnRect.height),
-                    action.description, descStyle);
+                    action.description, s_desc10);
 
                 buttonY += buttonHeight + buttonSpacing;
             }
@@ -289,10 +351,7 @@ namespace MuseumHeist.Cyber
             Rect panelRect = new Rect(panelX - 5, panelY - 5, panelWidth + 10, LOG_HEIGHT + 10);
             DrawPanelBackground(panelRect);
 
-            GUIStyle headerStyle = new GUIStyle(GUI.skin.label);
-            headerStyle.fontSize = 13;
-            headerStyle.normal.textColor = textColor;
-            GUI.Label(new Rect(panelX, panelY + 5, panelWidth, 20), "AUDIT LOG", headerStyle);
+            GUI.Label(new Rect(panelX, panelY + 5, panelWidth, 20), "AUDIT LOG", s_logHeader);
 
             IReadOnlyList<TerminalLogEntry> entries = null;
             if (activeTerminal.Log != null)
@@ -315,15 +374,12 @@ namespace MuseumHeist.Cyber
                 {
                     var entry = entries[i];
 
-                    GUIStyle logStyle = new GUIStyle(GUI.skin.label);
-                    logStyle.fontSize = 11;
-                    logStyle.normal.textColor = entry.Success ? textColor : failureColor;
-                    logStyle.alignment = TextAnchor.UpperLeft;
+                    s_logEntry11.normal.textColor = entry.Success ? textColor : failureColor;
 
                     string prefix = entry.Success ? "✓" : "✗";
                     GUI.Label(new Rect(viewRect.x + 5, entryY, viewRect.width - 10, entryHeight),
                         $"{prefix} [{entry.FormattedTime}] {entry.UserName}: {entry.Action} — {entry.Result}",
-                        logStyle);
+                        s_logEntry11);
 
                     entryY += entryHeight;
                 }
@@ -336,29 +392,19 @@ namespace MuseumHeist.Cyber
         {
             if (statusTimer <= 0f || string.IsNullOrEmpty(statusMessage)) return;
 
-            GUIStyle style = new GUIStyle(GUI.skin.label);
-            style.fontSize = 13;
-            style.normal.textColor = accentColor;
-            style.alignment = TextAnchor.LowerCenter;
-
             float alpha = Mathf.Clamp01(statusTimer / 1f);
-            Color c = style.normal.textColor;
+            Color c = accentColor;
             c.a = alpha;
-            style.normal.textColor = c;
+            s_status.normal.textColor = c;
 
             GUI.Label(new Rect(0, Screen.height - LOG_HEIGHT - PANEL_MARGIN - 40f, Screen.width, 30f),
-                statusMessage, style);
+                statusMessage, s_status);
         }
 
         private void DrawFooter()
         {
-            GUIStyle style = new GUIStyle(GUI.skin.label);
-            style.fontSize = 10;
-            style.normal.textColor = mutedColor;
-            style.alignment = TextAnchor.LowerRight;
-
             GUI.Label(new Rect(PANEL_MARGIN, Screen.height - 22, Screen.width - PANEL_MARGIN * 2, 20),
-                "Press ESC to disconnect  |  Museum Heist — Cyber Operations System v1.0", style);
+                "Press ESC to disconnect  |  Museum Heist — Cyber Operations System v1.0", s_footer10);
         }
 
         private void DrawPanelBackground(Rect rect)
@@ -390,14 +436,23 @@ namespace MuseumHeist.Cyber
             GUI.color = original;
         }
 
+        private static readonly Dictionary<int, Texture2D> texCache = new();
+
         private static Texture2D MakeTex(int width, int height, Color color)
         {
+            int key = width * 73856093 ^ height * 19349663 ^
+                      ((int)(color.r * 255) << 24) | ((int)(color.g * 255) << 16) |
+                      ((int)(color.b * 255) << 8) | (int)(color.a * 255);
+            if (texCache.TryGetValue(key, out var cached) && cached != null)
+                return cached;
+
             Color[] pixels = new Color[width * height];
             for (int i = 0; i < pixels.Length; i++)
                 pixels[i] = color;
             Texture2D tex = new Texture2D(width, height);
             tex.SetPixels(pixels);
             tex.Apply();
+            texCache[key] = tex;
             return tex;
         }
     }

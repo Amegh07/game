@@ -1,9 +1,14 @@
 using UnityEngine;
+using MuseumHeist.AccessControl;
 
 public class KeycardPickup : MonoBehaviour, IInteractable
 {
     [Header("Target")]
     public string targetDoorID = "";
+
+    [Header("Keycard")]
+    public KeycardType keycardType = KeycardType.Staff;
+    public bool destroyOnPickup = true;
 
     [Header("Animation")]
     public float rotationSpeed = 80f;
@@ -31,21 +36,44 @@ public class KeycardPickup : MonoBehaviour, IInteractable
         transform.Rotate(Vector3.up, rotationSpeed * Time.deltaTime);
     }
 
-    public void Interact()
+    public void Interact(PlayerController player)
     {
-        if (isCollected) return;
+        if (!CanInteract(player)) return;
 
         isCollected = true;
+
+        if (InventoryManager.Instance != null)
+        {
+            InventoryManager.Instance.AddKeycard(keycardType);
+        }
 
         if (SecurityManager.Instance != null && !string.IsNullOrEmpty(targetDoorID))
         {
             bool unlocked = SecurityManager.Instance.UnlockDoor(targetDoorID);
-            if (unlocked)
-                Debug.Log("Keycard acquired! Door unlocked via SecurityManager.");
+            if (!unlocked)
+                SecurityManager.Instance.RequestDoorUnlock(targetDoorID);
+
+            Debug.Log("Keycard acquired! Door unlock requested.");
         }
 
         MissionManager.Instance?.CompleteObjective(ObjectiveID.ObtainKeycard);
 
-        gameObject.SetActive(false);
+        if (destroyOnPickup)
+            Destroy(gameObject);
+        else
+            gameObject.SetActive(false);
     }
+
+    public bool CanInteract(PlayerController player)
+    {
+        return !isCollected;
+    }
+
+    public string GetInteractionPrompt()
+    {
+        return "Take Keycard";
+    }
+
+    public void OnFocus() { }
+    public void OnLoseFocus() { }
 }

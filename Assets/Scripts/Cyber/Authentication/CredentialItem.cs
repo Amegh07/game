@@ -9,6 +9,11 @@ namespace MuseumHeist.Cyber
         [SerializeField] private UserRole grantedRole = UserRole.Staff;
         [SerializeField] private string displayName = "Staff Keycard";
 
+        public void SetCredential(string id, CredentialType type, UserRole role, string name)
+        {
+            credentialID = id; credentialType = type; grantedRole = role; displayName = name;
+        }
+
         [SerializeField] private float rotationSpeed = 80f;
         [SerializeField] private bool destroyOnPickup = true;
 
@@ -20,9 +25,9 @@ namespace MuseumHeist.Cyber
             transform.Rotate(Vector3.up, rotationSpeed * Time.deltaTime);
         }
 
-        public void Interact()
+        public void Interact(PlayerController player)
         {
-            if (collected) return;
+            if (!CanInteract(player)) return;
             collected = true;
 
             if (CredentialManager.Instance != null)
@@ -35,5 +40,18 @@ namespace MuseumHeist.Cyber
             else
                 gameObject.SetActive(false);
         }
+
+        public bool CanInteract(PlayerController player)
+        {
+            return !collected;
+        }
+
+        public string GetInteractionPrompt()
+        {
+            return $"Pick Up {displayName}";
+        }
+
+        public void OnFocus() { }
+        public void OnLoseFocus() { }
     }
 }

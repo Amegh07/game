@@ -17,6 +17,12 @@ namespace MuseumHeist.Cyber
                 return;
             }
             Instance = this;
+            DontDestroyOnLoad(gameObject);
+        }
+
+        void OnDestroy()
+        {
+            if (Instance == this) Instance = null;
         }
 
         public AuthorizationResult Authorize(UserRole role, string terminalID, UserRole minimumRole)

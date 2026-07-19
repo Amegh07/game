@@ -34,6 +34,9 @@ namespace MuseumHeist.AccessControl
         public float autoCloseDelay = 3f;
 
         [Header("Security Response")]
+        [Tooltip("Lock this door when SecurityManager raises Suspicious level.")]
+        public bool lockOnSuspicious = false;
+
         [Tooltip("Lock this door when SecurityManager raises Alert level.")]
         public bool lockOnAlert = false;
 

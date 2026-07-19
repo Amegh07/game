@@ -12,8 +12,6 @@ public class ArtifactController : MonoBehaviour, IInteractable
     [SerializeField] private Color glowColor = new Color(1f, 0.8f, 0.2f);
 
     [Header("Escape Phase")]
-    [SerializeField] private GameObject[] emergencyLights;
-    [SerializeField] private AudioClip alarmSound;
     [SerializeField] private AudioClip artifactPickupSound;
 
     private Vector3 startPosition;
@@ -45,37 +43,37 @@ public class ArtifactController : MonoBehaviour, IInteractable
         transform.Rotate(Vector3.up, rotationSpeed * Time.deltaTime);
     }
 
-    public void Interact()
+    public void Interact(PlayerController player)
     {
-        if (collected) return;
-
-        if (MissionManager.Instance == null) return;
+        if (!CanInteract(player)) return;
 
         collected = true;
 
         if (artifactPickupSound != null && audioSource != null)
             audioSource.PlayOneShot(artifactPickupSound);
 
-        MissionManager.Instance.CompleteObjective(ObjectiveID.StealMainArtifact);
-        MissionManager.Instance.TriggerEscapePhase();
+        NoiseManager.EmitAt(transform.position, 15f, 0.8f, NoiseType.Interaction, gameObject);
 
-        ActivateEmergencyLights();
+        MissionManager.Instance?.CompleteObjective(ObjectiveID.StealMainArtifact);
+        MissionManager.Instance?.TriggerEscapePhase();
 
         Debug.Log($"Artifact '{artifactName}' stolen! Escape phase initiated.");
 
         gameObject.SetActive(false);
     }
 
-    private void ActivateEmergencyLights()
+    public bool CanInteract(PlayerController player)
     {
-        if (emergencyLights == null) return;
-
-        foreach (var lightObj in emergencyLights)
-        {
-            if (lightObj != null)
-                lightObj.SetActive(true);
-        }
+        return !collected && MissionManager.Instance != null;
     }
+
+    public string GetInteractionPrompt()
+    {
+        return $"Steal {artifactName}";
+    }
+
+    public void OnFocus() { }
+    public void OnLoseFocus() { }
 
     void OnDrawGizmos()
     {

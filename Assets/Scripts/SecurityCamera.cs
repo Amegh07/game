@@ -16,6 +16,9 @@ public class SecurityCamera : MonoBehaviour
     [Tooltip("Optional ScriptableObject asset. When assigned, its values override the individual fields below.")]
     public CameraConfig config;
 
+    [Header("Registration")]
+    public bool registerWithSecurity = true;
+
     [Header("Rotation")]
     public float rotationAngle = 45f;
     public float rotationSpeed = 30f;
@@ -26,6 +29,16 @@ public class SecurityCamera : MonoBehaviour
     public float detectionTime = 2f;
     public float detectionDecayRate = 1f;
     public LayerMask obstructionMask = -1;
+
+    [Header("Security Level Multipliers")]
+    public float speedMultiplierNormal = 1f;
+    public float speedMultiplierSuspicious = 1.3f;
+    public float speedMultiplierAlert = 1.6f;
+    public float speedMultiplierLockdown = 2f;
+    public float rangeMultiplierNormal = 1f;
+    public float rangeMultiplierSuspicious = 1.1f;
+    public float rangeMultiplierAlert = 1.25f;
+    public float rangeMultiplierLockdown = 1.5f;
 
     [Header("State")]
     public bool isActive = true;
@@ -43,21 +56,69 @@ public class SecurityCamera : MonoBehaviour
     private bool playerInSight;
     private Transform playerTransform;
 
+    // Base values (resolved from config or field)
+    private float baseSpeed;
+    private float baseRange;
+
+    // Runtime effective values adjusted by security level
+    private float effectiveSpeed;
+    private float effectiveRange;
+    private bool eventsSubscribed = false;
+
+    void OnEnable()
+    {
+        SubscribeToEvents();
+    }
+
+    void OnDisable()
+    {
+        UnsubscribeFromEvents();
+    }
+
+    private void SubscribeToEvents()
+    {
+        if (eventsSubscribed) return;
+        if (SecurityManager.Instance != null)
+        {
+            SecurityManager.Instance.OnAlarmLevelChanged += HandleAlarmLevelChanged;
+            UpdateEffectiveValues();
+            eventsSubscribed = true;
+        }
+        if (MissionHUD.Instance != null)
+            MissionHUD.Instance.RegisterCamera(this);
+    }
+
+    private void UnsubscribeFromEvents()
+    {
+        if (!eventsSubscribed) return;
+        if (SecurityManager.Instance != null)
+            SecurityManager.Instance.OnAlarmLevelChanged -= HandleAlarmLevelChanged;
+        if (MissionHUD.Instance != null)
+            MissionHUD.Instance.UnregisterCamera(this);
+        eventsSubscribed = false;
+    }
+
     void Start()
     {
         initialYRotation = transform.eulerAngles.y;
         rotatingLeft = config != null ? config.startRotatingLeft : true;
 
+        baseSpeed = FromConfig(c => c.patrolSpeed, rotationSpeed);
+        baseRange = FromConfig(c => c.detectionRange, detectionRange);
+
         GameObject player = GameObject.FindGameObjectWithTag("Player");
         if (player != null) playerTransform = player.transform;
 
-        if (SecurityManager.Instance != null)
+        if (SecurityManager.Instance != null && registerWithSecurity)
             SecurityManager.Instance.RegisterCamera(cameraID, this);
+
+        UpdateEffectiveValues();
     }
 
     void OnDestroy()
     {
-        if (SecurityManager.Instance != null)
+        UnsubscribeFromEvents();
+        if (SecurityManager.Instance != null && registerWithSecurity)
             SecurityManager.Instance.UnregisterCamera(cameraID);
     }
 
@@ -65,18 +126,58 @@ public class SecurityCamera : MonoBehaviour
     {
         if (!isActive) return;
 
-        playerInSight = false;
-        if (playerTransform != null)
-            DetectPlayer();
+        if (registerWithSecurity)
+        {
+            playerInSight = false;
+            if (playerTransform != null)
+                DetectPlayer();
+
+            UpdateAlertState();
+        }
 
         UpdateRotation();
-        UpdateAlertState();
+    }
+
+    private void HandleAlarmLevelChanged(SecurityManager.AlarmLevel oldLevel, SecurityManager.AlarmLevel newLevel)
+    {
+        UpdateEffectiveValues();
+    }
+
+    private void UpdateEffectiveValues()
+    {
+        if (SecurityManager.Instance == null)
+        {
+            effectiveSpeed = baseSpeed;
+            effectiveRange = baseRange;
+            return;
+        }
+
+        switch (SecurityManager.Instance.currentAlarmLevel)
+        {
+            case SecurityManager.AlarmLevel.Normal:
+            case SecurityManager.AlarmLevel.Recovery:
+                effectiveSpeed = baseSpeed * speedMultiplierNormal;
+                effectiveRange = baseRange * rangeMultiplierNormal;
+                break;
+            case SecurityManager.AlarmLevel.Suspicious:
+                effectiveSpeed = baseSpeed * speedMultiplierSuspicious;
+                effectiveRange = baseRange * rangeMultiplierSuspicious;
+                break;
+            case SecurityManager.AlarmLevel.Alert:
+                effectiveSpeed = baseSpeed * speedMultiplierAlert;
+                effectiveRange = baseRange * rangeMultiplierAlert;
+                break;
+            case SecurityManager.AlarmLevel.Lockdown:
+                effectiveSpeed = baseSpeed * speedMultiplierLockdown;
+                effectiveRange = baseRange * rangeMultiplierLockdown;
+                break;
+        }
     }
 
     private void DetectPlayer()
     {
         Vector3 origin = transform.position;
-        float range = FromConfig(c => c.detectionRange, detectionRange);
+        float range = effectiveRange;
         float fov = FromConfig(c => c.fieldOfView, fieldOfView);
 
         Vector3 toPlayer = playerTransform.position - origin;
@@ -100,7 +201,7 @@ public class SecurityCamera : MonoBehaviour
         if (FromConfig(c => c.stopRotationOnDetection, false) && alertState == CameraAlertState.Alerted)
             return;
 
-        float speed = FromConfig(c => c.patrolSpeed, rotationSpeed);
+        float speed = effectiveSpeed;
         float limit = FromConfig(c => c.patrolAngle, rotationAngle);
         float step = speed * Time.deltaTime;
 
@@ -145,7 +246,8 @@ public class SecurityCamera : MonoBehaviour
                 hasFiredLost = false;
                 alertState = CameraAlertState.Alerted;
                 OnPlayerDetected?.Invoke(cameraID);
-                SecurityManager.Instance?.SetAlarmLevel(SecurityManager.AlarmLevel.Alert);
+                SecurityManager.Instance?.ReportTrigger(
+                    SecurityManager.SecurityTrigger.CameraPlayerDetected, cameraID);
             }
         }
         else
@@ -166,6 +268,13 @@ public class SecurityCamera : MonoBehaviour
         }
     }
 
+    public float GetDetectionProgress()
+    {
+        if (!isActive || detectionProgress <= 0f) return 0f;
+        float needed = FromConfig(c => c.detectionTime, detectionTime);
+        return Mathf.Clamp01(detectionProgress / Mathf.Max(needed, 0.01f));
+    }
+
     public void SetActiveState(bool active)
     {
         isActive = active;
@@ -176,6 +285,22 @@ public class SecurityCamera : MonoBehaviour
             playerInSight = false;
             hasFiredDetection = false;
             hasFiredLost = true;
+
+            var body = transform.Find("Body");
+            if (body != null)
+            {
+                var r = body.GetComponent<Renderer>();
+                if (r != null) r.material.color = new Color(0.15f, 0.15f, 0.15f);
+            }
+        }
+        else
+        {
+            var body = transform.Find("Body");
+            if (body != null)
+            {
+                var r = body.GetComponent<Renderer>();
+                if (r != null) r.material.color = Color.gray;
+            }
         }
     }
 
@@ -188,7 +313,7 @@ public class SecurityCamera : MonoBehaviour
     {
         if (!isActive && Application.isPlaying) return;
 
-        float range = FromConfig(c => c.detectionRange, detectionRange);
+        float range = Application.isPlaying ? effectiveRange : FromConfig(c => c.detectionRange, detectionRange);
         float fov = FromConfig(c => c.fieldOfView, fieldOfView);
         Color coneColor = FromConfig(c => c.visionConeColor, new Color(1f, 0f, 0f, 0.08f));
 

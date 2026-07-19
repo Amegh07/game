@@ -25,6 +25,38 @@ namespace MuseumHeist.Cyber
         }
     }
 
+    public class DisableCameraGroupAction : ITerminalAction
+    {
+        public string ActionName => "Disable Camera Network";
+        public string Description => "Disable a group of security cameras.";
+        public string RequiredPermission => Permissions.DisableCameras;
+
+        public bool Execute(TerminalActionContext context, out string resultMessage)
+        {
+            if (SecurityManager.Instance == null)
+            {
+                resultMessage = "Security system unavailable.";
+                return false;
+            }
+
+            string[] ids = context.TargetIDs;
+            if (ids == null || ids.Length == 0)
+            {
+                if (!string.IsNullOrEmpty(context.TargetID))
+                    ids = context.TargetID.Split(';');
+                else
+                {
+                    resultMessage = "No camera IDs specified.";
+                    return false;
+                }
+            }
+
+            int count = SecurityManager.Instance.DisableCameraGroup(ids);
+            resultMessage = $"{count} camera(s) disabled successfully.";
+            return count > 0;
+        }
+    }
+
     public class UnlockDoorAction : ITerminalAction
     {
         public string ActionName => "Unlock Door";
@@ -48,7 +80,7 @@ namespace MuseumHeist.Cyber
     public class ResetAlarmAction : ITerminalAction
     {
         public string ActionName => "Reset Alarm";
-        public string Description => "Reset the security alarm to normal state.";
+        public string Description => "Reset the security alarm to normal state (or begin recovery if escalated).";
         public string RequiredPermission => Permissions.ResetAlarm;
 
         public bool Execute(TerminalActionContext context, out string resultMessage)
@@ -60,7 +92,12 @@ namespace MuseumHeist.Cyber
             }
 
             SecurityManager.Instance.ResetAlarm();
-            resultMessage = "Alarm reset to normal.";
+
+            if (SecurityManager.Instance.currentAlarmLevel == SecurityManager.AlarmLevel.Normal)
+                resultMessage = "Alarm reset to normal.";
+            else
+                resultMessage = "Recovery sequence initiated. Security level will decrease over time.";
+
             return true;
         }
     }
@@ -99,7 +136,8 @@ namespace MuseumHeist.Cyber
                 return false;
             }
 
-            SecurityManager.Instance.SetAlarmLevel(SecurityManager.AlarmLevel.Lockdown);
+            SecurityManager.Instance.ReportTrigger(
+                SecurityManager.SecurityTrigger.AlarmButtonPressed, "terminal");
             resultMessage = "Emergency lockdown initiated.";
             return true;
         }
@@ -119,7 +157,8 @@ namespace MuseumHeist.Cyber
                 return false;
             }
 
-            SecurityManager.Instance.SetAlarmLevel(SecurityManager.AlarmLevel.Suspicious);
+            SecurityManager.Instance.ReportTrigger(
+                SecurityManager.SecurityTrigger.GuardSuspicious, "terminal");
             resultMessage = "Maintenance mode activated. Security level: Suspicious.";
             return true;
         }
@@ -152,7 +191,7 @@ namespace MuseumHeist.Cyber
                 return false;
             }
 
-            SecurityManager.Instance.ResetAlarm();
+            SecurityManager.Instance.ForceResetAlarm();
 
             SecurityManager.Instance.LockAllDoors();
 

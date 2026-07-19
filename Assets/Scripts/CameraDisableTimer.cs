@@ -8,12 +8,27 @@ public class CameraDisableTimer : MonoBehaviour
     private float remainingTime;
     private bool timerActive;
     private string activeCameraID;
+    private GUIStyle timerStyle;
 
     public static CameraDisableTimer Instance { get; private set; }
 
     void Awake()
     {
+        if (Instance != null && Instance != this)
+        {
+            Destroy(gameObject);
+            return;
+        }
         Instance = this;
+        DontDestroyOnLoad(gameObject);
+
+        timerStyle = new GUIStyle()
+        {
+            fontSize = 16,
+            fontStyle = FontStyle.Bold,
+            alignment = TextAnchor.UpperCenter
+        };
+        timerStyle.normal.textColor = Color.yellow;
     }
 
     void OnEnable()
@@ -84,16 +99,7 @@ public class CameraDisableTimer : MonoBehaviour
     {
         if (!timerActive) return;
 
-        GUIStyle style = new GUIStyle(GUI.skin.label);
-        style.fontSize = 16;
-        style.fontStyle = FontStyle.Bold;
-        style.normal.textColor = Color.yellow;
-        style.alignment = TextAnchor.UpperCenter;
-
-        string label = timerActive
-            ? $"EAST CAMERAS OFFLINE: {remainingTime:F1}s"
-            : "";
-
-        GUI.Label(new Rect(0, 160, Screen.width, 30), label, style);
+        string label = $"EAST CAMERAS OFFLINE: {remainingTime:F1}s";
+        GUI.Label(new Rect(0, 160, Screen.width, 30), label, timerStyle);
     }
 }

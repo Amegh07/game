@@ -1,5 +1,9 @@
 # Museum Heist — Comprehensive Final Review
 
+> **Phase 5A Update**: See Appendix at end for post-review gameplay enhancements (Elite Guard, Checkpoints, Camera Network, Mission Scoring, HUD Enhancements, Results Screen).
+
+
+
 ## 1. Gameplay Review
 
 ### Core Loop
@@ -370,11 +374,54 @@ Found and verified:
 
 | Metric | Value |
 |---|---|
-| Total C# scripts | 47 (runtime) + 4 (editor) |
-| Total lines of code (approx) | ~5,500 |
+| Total C# scripts | 50 (runtime) + 4 (editor) |
+| Total lines of code (approx) | ~6,200 |
 | State machines | 5 (Guard, Door, Mission, Camera, Player) |
 | FSM states combined | ~28 |
 | ScriptableObject types | 5 (DoorConfig, CameraConfig, TerminalConfig, RolePermissionsConfig, PermissionSet) |
-| IInteractable implementations | 5 (KeycardItem, TerminalController, SecurityCamera, NotePickup, CheckpointTrigger) |
-| Design patterns used | Singleton (9×), Observer, Command, State, Strategy, ObjectProvider |
+| IInteractable implementations | 6 (KeycardItem, TerminalController, SecurityCamera, NotePickup, CheckpointTrigger, ArtifactController) |
+| Design patterns used | Singleton (11×), Observer, Command, State, Strategy, ObjectProvider |
 | Scenes | 2 (Tutorial, MuseumHeist) + planned MainMenu |
+
+---
+
+## Appendix B: Phase 5A — Post-Review Gameplay Features
+
+### Elite Guard
+- `GuardFSM.isElite` bool overrides patrol speed (2.5+), vision range (14m), FOV (80°), suspicion time (1.2s), chase speed (6.5), hearing radius (18m).
+- One elite guard (dark red) placed in vault antechamber with 5-waypoint patrol.
+- File: `Assets/Scripts/GuardFSM.cs:23`, placement in `MuseumGameplayPlacer.MakeEliteGuard()`.
+
+### Checkpoints
+- `CheckpointTrigger` MonoBehaviour saves progress on trigger enter.
+- `CheckpointManager` extended with `RegisterCheckpoint()` / `ForceCheckpoint()`.
+- 4 zones: Lobby, Security Office, Vault Corridor entrance, Escape.
+- Files: `Assets/Scripts/CheckpointTrigger.cs` (new), `Assets/Scripts/CheckpointManager.cs`.
+
+### Camera Network Disable
+- `SecurityManager.DisableCameraGroup(string[] ids)` batch-disables cameras.
+- `DisableCameraGroupAction` parses semicolon-delimited IDs from `TargetID`.
+- Registered via `ActionExecutor.RegisterAction()` in level startup.
+- Security terminal action disables `camera_east`, `camera_west`, `camera_lobby` in one click.
+- Files: `Assets/Scripts/SecurityManager.cs`, `Assets/Scripts/Cyber/Actions/TerminalActions.cs`.
+
+### Mission Scoring
+- `MissionScorer` singleton tracks: camera detections, guard encounters, alarms, time, secondary objectives.
+- Rating: S (≥95), A (≥75), B (≥50), C (≥25), D.
+- Deductions: −15/camera, −20/guard, −25/alarm, −2/10s overtime.
+- File: `Assets/Scripts/MissionScorer.cs` (new).
+
+### HUD Enhancements
+- **Stealth Indicator**: bottom-right eye icon (green/yellow/red) scanning guards+cameras within 12m.
+- **Detection Meter**: center-screen progress bar with source label when being detected.
+- File: `Assets/Scripts/UI/MissionHUD.cs`.
+
+### Results Screen
+- OnGUI panel triggered after `OnMissionCompleted` (1.5s delay).
+- Shows rating letter, color, descriptive label, stat breakdown.
+- Dismiss with Space.
+- File: `Assets/Scripts/UI/ResultsScreen.cs` (new).
+
+### Bootstrap Wiring
+- Both `MissionScorer` and `ResultsScreen` added to `GameBootstrapper.EnsureManagers()`.
+- Scoring auto-starts on first objective via `OnObjectiveStarted` event.

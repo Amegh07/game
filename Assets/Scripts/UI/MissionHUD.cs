@@ -12,13 +12,69 @@ public class MissionHUD : MonoBehaviour
     [SerializeField] private Color phaseColor = new Color(1f, 0.8f, 0.2f);
     [SerializeField] private Color alertColor = new Color(1f, 0.2f, 0.2f);
 
+    [Header("Stealth Indicator")]
+    [SerializeField] private float stealthScanRadius = 12f;
+    [SerializeField] private Color safeColor = new Color(0.2f, 0.9f, 0.2f, 0.6f);
+    [SerializeField] private Color warningColor = new Color(1f, 0.8f, 0.2f, 0.8f);
+    [SerializeField] private Color dangerColor = new Color(1f, 0.2f, 0.2f, 1f);
+
+    private float stealthDanger;
+    private float detectionProgress;
+    private bool beingDetected;
+    private string detectionSource = "";
+
     private string notificationMessage = "";
     private float notificationTimer = 0f;
+    private Color notificationColor;
     private readonly Queue<string> notificationQueue = new();
     private readonly Dictionary<ObjectiveID, string> objectiveNames = new();
 
+    private readonly List<GuardFSM> registeredGuards = new();
+    private readonly List<SecurityCamera> registeredCameras = new();
+    private bool eventsSubscribed = false;
+
+    private GUIStyle objectiveStyle;
+    private GUIStyle objectiveHeaderStyle;
+    private GUIStyle notificationStyle;
+    private GUIStyle stealthIconStyle;
+    private GUIStyle stealthLabelStyle;
+    private GUIStyle detectionStyle;
+    private GUIStyle phaseStyle;
+
+    public static MissionHUD Instance { get; private set; }
+
+    public void RegisterGuard(GuardFSM guard)
+    {
+        if (guard != null && !registeredGuards.Contains(guard))
+            registeredGuards.Add(guard);
+    }
+
+    public void UnregisterGuard(GuardFSM guard)
+    {
+        registeredGuards.Remove(guard);
+    }
+
+    public void RegisterCamera(SecurityCamera cam)
+    {
+        if (cam != null && !registeredCameras.Contains(cam))
+            registeredCameras.Add(cam);
+    }
+
+    public void UnregisterCamera(SecurityCamera cam)
+    {
+        registeredCameras.Remove(cam);
+    }
+
     void Awake()
     {
+        if (Instance != null && Instance != this)
+        {
+            Destroy(gameObject);
+            return;
+        }
+        Instance = this;
+        DontDestroyOnLoad(gameObject);
+
         objectiveNames[ObjectiveID.EnterMuseumHeist] = "Enter the Museum";
         objectiveNames[ObjectiveID.ReachLobby] = "Reach the Main Lobby";
         objectiveNames[ObjectiveID.FindStaffCredential] = "Find a Staff Credential";
@@ -45,26 +101,73 @@ public class MissionHUD : MonoBehaviour
         objectiveNames[ObjectiveID.Tutorial_StealArtifact] = "Steal the training artifact";
         objectiveNames[ObjectiveID.Tutorial_Escape] = "Escape the training facility";
         objectiveNames[ObjectiveID.Tutorial_Complete] = "Training Complete";
+
+        objectiveStyle = new GUIStyle();
+        objectiveStyle.fontSize = 13;
+
+        objectiveHeaderStyle = new GUIStyle();
+        objectiveHeaderStyle.fontSize = 10;
+
+        notificationStyle = new GUIStyle();
+        notificationStyle.fontSize = 16;
+        notificationStyle.alignment = TextAnchor.MiddleCenter;
+
+        stealthIconStyle = new GUIStyle();
+        stealthIconStyle.fontSize = 14;
+        stealthIconStyle.fontStyle = FontStyle.Bold;
+        stealthIconStyle.alignment = TextAnchor.MiddleCenter;
+
+        stealthLabelStyle = new GUIStyle();
+        stealthLabelStyle.fontSize = 9;
+        stealthLabelStyle.alignment = TextAnchor.MiddleCenter;
+
+        detectionStyle = new GUIStyle();
+        detectionStyle.fontSize = 9;
+        detectionStyle.alignment = TextAnchor.MiddleCenter;
+
+        phaseStyle = new GUIStyle();
+        phaseStyle.fontSize = 10;
+        phaseStyle.alignment = TextAnchor.UpperRight;
     }
 
     void OnEnable()
     {
+        SubscribeToEvents();
+    }
+
+    void OnDisable()
+    {
+        UnsubscribeFromEvents();
+    }
+
+    void OnDestroy()
+    {
+        UnsubscribeFromEvents();
+        if (Instance == this) Instance = null;
+    }
+
+    private void SubscribeToEvents()
+    {
+        if (eventsSubscribed) return;
         if (MissionManager.Instance != null)
         {
             MissionManager.Instance.OnObjectiveStarted += HandleObjectiveStarted;
             MissionManager.Instance.OnObjectiveCompleted += HandleObjectiveCompleted;
             MissionManager.Instance.OnPhaseChanged += HandlePhaseChanged;
+            eventsSubscribed = true;
         }
     }
 
-    void OnDisable()
+    private void UnsubscribeFromEvents()
     {
+        if (!eventsSubscribed) return;
         if (MissionManager.Instance != null)
         {
             MissionManager.Instance.OnObjectiveStarted -= HandleObjectiveStarted;
             MissionManager.Instance.OnObjectiveCompleted -= HandleObjectiveCompleted;
             MissionManager.Instance.OnPhaseChanged -= HandlePhaseChanged;
         }
+        eventsSubscribed = false;
     }
 
     private void HandleObjectiveStarted(ObjectiveID id)
@@ -98,6 +201,7 @@ public class MissionHUD : MonoBehaviour
     public void ShowNotification(string message, Color color)
     {
         notificationMessage = message;
+        notificationColor = color;
         notificationTimer = objectiveDisplayTime;
     }
 
@@ -105,13 +209,86 @@ public class MissionHUD : MonoBehaviour
     {
         if (notificationTimer > 0f)
             notificationTimer -= Time.deltaTime;
+
+        UpdateStealthIndicator();
+    }
+
+    private void UpdateStealthIndicator()
+    {
+        stealthDanger = 0f;
+        detectionProgress = 0f;
+        beingDetected = false;
+        detectionSource = "";
+
+        if (Camera.main == null) return;
+
+        Vector3 playerPos = Camera.main.transform.position;
+
+        for (int i = registeredGuards.Count - 1; i >= 0; i--)
+        {
+            GuardFSM guard = registeredGuards[i];
+            if (guard == null) { registeredGuards.RemoveAt(i); continue; }
+
+            float dist = Vector3.Distance(playerPos, guard.transform.position);
+            if (dist > stealthScanRadius) continue;
+
+            if (guard.HasPlayerInSight)
+            {
+                stealthDanger = Mathf.Max(stealthDanger, 1f);
+                beingDetected = true;
+                detectionSource = "GUARD";
+                float suspicionFrac = guard.CurrentSuspicionMeter / Mathf.Max(guard.suspicionTime, 0.01f);
+                detectionProgress = Mathf.Max(detectionProgress, suspicionFrac);
+            }
+            else if (guard.CurrentState == GuardFSM.GuardState.Suspicious)
+            {
+                stealthDanger = Mathf.Max(stealthDanger, 0.6f);
+                detectionSource = "GUARD (SUSPICIOUS)";
+                float suspicionFrac = guard.CurrentSuspicionMeter / Mathf.Max(guard.suspicionTime, 0.01f);
+                detectionProgress = Mathf.Max(detectionProgress, suspicionFrac);
+            }
+            else
+            {
+                float alertFrac = guard.DisplayAlertLevel / 100f;
+                if (alertFrac > 0.1f)
+                {
+                    float proximity = 1f - (dist / stealthScanRadius);
+                    stealthDanger = Mathf.Max(stealthDanger, alertFrac * proximity * 0.4f);
+                }
+            }
+        }
+
+        for (int i = registeredCameras.Count - 1; i >= 0; i--)
+        {
+            SecurityCamera cam = registeredCameras[i];
+            if (cam == null) { registeredCameras.RemoveAt(i); continue; }
+
+            float dist = Vector3.Distance(playerPos, cam.transform.position);
+            if (dist > stealthScanRadius) continue;
+
+            if (!cam.isActive) continue;
+
+            float camDanger = cam.GetDetectionProgress();
+            if (camDanger > 0f)
+            {
+                stealthDanger = Mathf.Max(stealthDanger, 0.7f + camDanger * 0.3f);
+                detectionProgress = Mathf.Max(detectionProgress, camDanger);
+                beingDetected = true;
+                detectionSource = "CAMERA";
+            }
+        }
+
+        stealthDanger = Mathf.Clamp01(stealthDanger);
     }
 
     void OnGUI()
     {
         DrawObjectiveDisplay();
         DrawNotification();
+        DrawStealthIndicator();
+        DrawDetectionMeter();
         DrawPhaseIndicator();
+        DrawDetectionWarning();
     }
 
     private void DrawObjectiveDisplay()
@@ -122,11 +299,6 @@ public class MissionHUD : MonoBehaviour
         string objectiveText = objectiveNames.TryGetValue(current, out string name) ? name : current.ToString();
         string formattedName = FormatObjectiveName(objectiveText);
 
-        GUIStyle style = new GUIStyle(GUI.skin.label);
-        style.fontSize = 14;
-        style.normal.textColor = objectiveColor;
-        style.alignment = TextAnchor.UpperLeft;
-
         Rect bgRect = new Rect(15, 15, 320, 60);
         Color bgColor = new Color(0.05f, 0.05f, 0.08f, 0.7f);
         Color original = GUI.color;
@@ -136,15 +308,11 @@ public class MissionHUD : MonoBehaviour
 
         DrawBorder(bgRect, new Color(0.15f, 0.15f, 0.2f, 0.8f));
 
-        GUIStyle headerStyle = new GUIStyle(GUI.skin.label);
-        headerStyle.fontSize = 10;
-        headerStyle.normal.textColor = new Color(0.6f, 0.6f, 0.6f);
-        headerStyle.alignment = TextAnchor.UpperLeft;
-        GUI.Label(new Rect(25, 18, 300, 16), "CURRENT OBJECTIVE", headerStyle);
+        objectiveHeaderStyle.normal.textColor = new Color(0.6f, 0.6f, 0.6f);
+        GUI.Label(new Rect(25, 18, 300, 16), "CURRENT OBJECTIVE", objectiveHeaderStyle);
 
-        style.fontSize = 13;
-        style.normal.textColor = MissionManager.Instance.currentPhase == MissionPhase.Escape ? alertColor : objectiveColor;
-        GUI.Label(new Rect(25, 36, 300, 30), formattedName, style);
+        objectiveStyle.normal.textColor = MissionManager.Instance.currentPhase == MissionPhase.Escape ? alertColor : objectiveColor;
+        GUI.Label(new Rect(25, 36, 300, 30), formattedName, objectiveStyle);
 
         float progress = MissionManager.Instance.GetProgress();
         Rect progressBarBg = new Rect(25, 62, 300, 4);
@@ -159,23 +327,100 @@ public class MissionHUD : MonoBehaviour
     {
         if (notificationTimer <= 0f || string.IsNullOrEmpty(notificationMessage)) return;
 
-        float alpha = Mathf.Clamp01(notificationTimer / 1.5f);
-        Color textColor = GUI.color;
-        textColor.a = alpha;
-        GUI.color = textColor;
+        float fadeTime = 0.4f;
+        float fadeIn = Mathf.Clamp01((objectiveDisplayTime - notificationTimer) / fadeTime);
+        float fadeOut = Mathf.Clamp01(notificationTimer / fadeTime);
+        float alpha = Mathf.Min(fadeIn, fadeOut);
 
-        GUIStyle style = new GUIStyle(GUI.skin.box);
-        style.fontSize = 16;
-        style.normal.textColor = Color.white;
-        style.normal.background = MakeTex(2, 2, new Color(0.05f, 0.05f, 0.1f, 0.85f));
-        style.alignment = TextAnchor.MiddleCenter;
+        Color bgColor = new Color(0.05f, 0.05f, 0.1f, 0.85f * alpha);
+        Color textColor = notificationColor;
+        textColor.a = alpha;
+
+        notificationStyle.normal.textColor = textColor;
+        notificationStyle.normal.background = MakeTex(2, 2, bgColor);
 
         float width = 500f;
         float height = 50f;
         Rect rect = new Rect(Screen.width / 2f - width / 2f, 90f, width, height);
-        GUI.Box(rect, notificationMessage, style);
 
+        Color original = GUI.color;
         GUI.color = Color.white;
+        GUI.Box(rect, notificationMessage, notificationStyle);
+        GUI.color = original;
+    }
+
+    private void DrawStealthIndicator()
+    {
+        float iconSize = 28f;
+        float padding = 8f;
+        float x = Screen.width - iconSize - padding;
+        float y = Screen.height - iconSize - padding - 30f;
+
+        Color indicatorColor;
+        string label;
+
+        if (stealthDanger >= 0.9f)
+        {
+            indicatorColor = dangerColor;
+            label = "!!";
+        }
+        else if (stealthDanger >= 0.4f)
+        {
+            indicatorColor = warningColor;
+            label = "!";
+        }
+        else
+        {
+            indicatorColor = safeColor;
+            label = "\u25CB";
+        }
+
+        Color original = GUI.color;
+        GUI.color = new Color(indicatorColor.r, indicatorColor.g, indicatorColor.b, Mathf.Lerp(0.3f, 1f, stealthDanger));
+
+        stealthIconStyle.normal.textColor = Color.white;
+        stealthIconStyle.normal.background = MakeTex(2, 2, indicatorColor * 0.3f);
+
+        GUI.Box(new Rect(x, y, iconSize, iconSize), label, stealthIconStyle);
+
+        if (stealthDanger > 0.1f)
+        {
+            stealthLabelStyle.normal.textColor = indicatorColor;
+            GUI.Label(new Rect(x - 20f, y + iconSize, iconSize + 40f, 14f),
+                $"VISIBILITY: {stealthDanger * 100f:F0}%", stealthLabelStyle);
+        }
+
+        GUI.color = original;
+    }
+
+    private void DrawDetectionMeter()
+    {
+        if (!beingDetected || detectionProgress <= 0f) return;
+
+        float barWidth = 140f;
+        float barHeight = 14f;
+        float x = Screen.width / 2f - barWidth / 2f;
+        float y = Screen.height / 2f + 30f;
+
+        Color barColor = detectionProgress >= 0.8f ? alertColor : warningColor;
+
+        Color original = GUI.color;
+        Color bgColor = new Color(0.05f, 0.05f, 0.08f, 0.7f);
+
+        GUI.color = bgColor;
+        GUI.DrawTexture(new Rect(x, y, barWidth, barHeight), Texture2D.whiteTexture);
+
+        GUI.color = barColor;
+        GUI.DrawTexture(new Rect(x, y, barWidth * detectionProgress, barHeight), Texture2D.whiteTexture);
+
+        DrawBorder(new Rect(x, y, barWidth, barHeight), new Color(0.15f, 0.15f, 0.2f, 0.8f));
+
+        detectionStyle.normal.textColor = barColor;
+
+        string detText = detectionProgress >= 1f ? "DETECTED!" : $"DETECTING \u2014 {detectionSource}";
+        GUI.Label(new Rect(x, y, barWidth, barHeight), detText, detectionStyle);
+
+        GUI.color = original;
     }
 
     private void DrawPhaseIndicator()
@@ -192,13 +437,6 @@ public class MissionHUD : MonoBehaviour
             MissionPhase.Escape => "ESCAPE",
             _ => ""
         };
-
-        Color phaseDisplayColor = phase == MissionPhase.Escape ? alertColor : new Color(0.5f, 0.5f, 0.6f);
-
-        GUIStyle style = new GUIStyle(GUI.skin.label);
-        style.fontSize = 10;
-        style.normal.textColor = phaseDisplayColor;
-        style.alignment = TextAnchor.UpperRight;
 
         string alarmText = "";
         Color alarmColor = Color.green;
@@ -222,6 +460,10 @@ public class MissionHUD : MonoBehaviour
                     alarmText = "ALARM: LOCKDOWN";
                     alarmColor = Color.magenta;
                     break;
+                case SecurityManager.AlarmLevel.Recovery:
+                    alarmText = "ALARM: RECOVERING";
+                    alarmColor = Color.cyan;
+                    break;
             }
         }
 
@@ -229,8 +471,30 @@ public class MissionHUD : MonoBehaviour
 
         Color original = GUI.color;
         GUI.color = alarmColor;
-        style.normal.textColor = phase == MissionPhase.Escape ? alertColor : alarmColor;
-        GUI.Label(new Rect(Screen.width - 220, 12, 200, 20), displayText, style);
+        phaseStyle.normal.textColor = phase == MissionPhase.Escape ? alertColor : alarmColor;
+        GUI.Label(new Rect(Screen.width - 220, 12, 200, 20), displayText, phaseStyle);
+        GUI.color = original;
+    }
+
+    private void DrawDetectionWarning()
+    {
+        if (detectionProgress <= 0f) return;
+
+        float edgeThickness = Mathf.Lerp(0f, 12f, detectionProgress);
+        Color edgeColor = detectionProgress >= 0.8f
+            ? new Color(1f, 0.1f, 0.1f, detectionProgress * 0.6f)
+            : new Color(1f, 0.6f, 0.1f, detectionProgress * 0.4f);
+
+        Color original = GUI.color;
+        GUI.color = edgeColor;
+
+        float w = Screen.width;
+        float h = Screen.height;
+        GUI.DrawTexture(new Rect(0, 0, w, edgeThickness), Texture2D.whiteTexture);
+        GUI.DrawTexture(new Rect(0, h - edgeThickness, w, edgeThickness), Texture2D.whiteTexture);
+        GUI.DrawTexture(new Rect(0, 0, edgeThickness, h), Texture2D.whiteTexture);
+        GUI.DrawTexture(new Rect(w - edgeThickness, 0, edgeThickness, h), Texture2D.whiteTexture);
+
         GUI.color = original;
     }
 
@@ -250,13 +514,25 @@ public class MissionHUD : MonoBehaviour
         return name;
     }
 
+    private static readonly Dictionary<int, Texture2D> texCache = new();
+
     private static Texture2D MakeTex(int width, int height, Color color)
     {
+        int key = (width * 73856093) ^ (height * 19349663) ^ ColorToInt(color);
+        if (texCache.TryGetValue(key, out var cached) && cached != null)
+            return cached;
+
         Color[] pixels = new Color[width * height];
         for (int i = 0; i < pixels.Length; i++) pixels[i] = color;
         Texture2D tex = new Texture2D(width, height);
         tex.SetPixels(pixels);
         tex.Apply();
+        texCache[key] = tex;
         return tex;
+    }
+
+    private static int ColorToInt(Color c)
+    {
+        return ((int)(c.r * 255) << 24) | ((int)(c.g * 255) << 16) | ((int)(c.b * 255) << 8) | (int)(c.a * 255);
     }
 }

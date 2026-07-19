@@ -4,7 +4,6 @@ public class EscapePhaseController : MonoBehaviour
 {
     [Header("Escape Settings")]
     [SerializeField] private Transform exitTriggerZone;
-    [SerializeField] private string exitDoorID = "door_emergency_exit";
     [SerializeField] private float exitTriggerRadius = 3f;
     [SerializeField] private AudioSource alarmAudioSource;
     [SerializeField] private AudioClip alarmLoopClip;
@@ -12,22 +11,58 @@ public class EscapePhaseController : MonoBehaviour
 
     private bool escapePhaseActive;
     private bool hasExited;
+    private Transform cachedPlayerTransform;
+    private bool eventsSubscribed = false;
 
     void OnEnable()
     {
-        if (MissionManager.Instance != null)
-        {
-            MissionManager.Instance.OnPhaseChanged += HandlePhaseChanged;
-            MissionManager.Instance.OnObjectiveCompleted += HandleObjectiveCompleted;
-        }
+        SubscribeToEvents();
     }
 
     void OnDisable()
     {
+        UnsubscribeFromEvents();
+    }
+
+    void OnDestroy()
+    {
+        UnsubscribeFromEvents();
+    }
+
+    private void SubscribeToEvents()
+    {
+        if (eventsSubscribed) return;
+        if (MissionManager.Instance != null)
+        {
+            MissionManager.Instance.OnPhaseChanged += HandlePhaseChanged;
+            MissionManager.Instance.OnObjectiveCompleted += HandleObjectiveCompleted;
+            eventsSubscribed = true;
+        }
+    }
+
+    private void UnsubscribeFromEvents()
+    {
+        if (!eventsSubscribed) return;
         if (MissionManager.Instance != null)
         {
             MissionManager.Instance.OnPhaseChanged -= HandlePhaseChanged;
             MissionManager.Instance.OnObjectiveCompleted -= HandleObjectiveCompleted;
+        }
+        eventsSubscribed = false;
+    }
+
+    void Start()
+    {
+        CachePlayerReference();
+    }
+
+    private void CachePlayerReference()
+    {
+        if (cachedPlayerTransform == null)
+        {
+            GameObject player = GameObject.FindGameObjectWithTag("Player");
+            if (player != null)
+                cachedPlayerTransform = player.transform;
         }
     }
 
@@ -66,8 +101,7 @@ public class EscapePhaseController : MonoBehaviour
 
         if (SecurityManager.Instance != null)
         {
-            SecurityManager.Instance.SetAlarmLevel(SecurityManager.AlarmLevel.Alert);
-            SecurityManager.Instance.RequestDoorUnlock(exitDoorID);
+            SecurityManager.Instance.ReportTrigger(SecurityManager.SecurityTrigger.PlayerDetected, "EscapePhase");
         }
 
         Debug.Log("EscapePhase: Escape phase activated. Alarm raised. Exit unlocked.");
@@ -77,14 +111,17 @@ public class EscapePhaseController : MonoBehaviour
     {
         if (!escapePhaseActive || hasExited) return;
 
-        GameObject player = GameObject.FindGameObjectWithTag("Player");
-        if (player == null) return;
+        if (cachedPlayerTransform == null)
+        {
+            CachePlayerReference();
+            if (cachedPlayerTransform == null) return;
+        }
 
-        float dist = Vector3.Distance(player.transform.position, exitTriggerZone != null
-            ? exitTriggerZone.position
-            : Vector3.zero);
+        if (exitTriggerZone == null) return;
 
-        if (exitTriggerZone != null && dist < exitTriggerRadius)
+        float dist = Vector3.Distance(cachedPlayerTransform.position, exitTriggerZone.position);
+
+        if (dist < exitTriggerRadius)
         {
             OnPlayerExited();
         }

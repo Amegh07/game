@@ -1,0 +1,35 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: f5593d1734f5d6f46879bab568440f91, type: 3}
+  m_Name: TutorialTerminal
+  m_EditorClassIdentifier: Assembly-CSharp::MuseumHeist.Cyber.TerminalConfig
+  terminalName: Training Terminal
+  terminalID: terminal_training
+  requiredCredentialType: 0
+  minimumRole: 0
+  skipAuthentication: 1
+  actions:
+  - actionType: DisableCamera
+    displayName: Disable Camera
+    description: Disable the training security camera.
+    requiredPermission: disable.cameras
+    targetID: camera_training
+  connectedCameraIDs: []
+  connectedDoorIDs: []
+  themeColor: {r: 0, g: 1, b: 0.4, a: 1}
+  accessLevelLabel: "TRAINING \u2014 AUTHORIZED ACCESS"
+  connectSound: {fileID: 0}
+  disconnectSound: {fileID: 0}
+  authenticateSound: {fileID: 0}
+  actionSound: {fileID: 0}
+  animatorController: {fileID: 0}
+  interactTrigger: Interact

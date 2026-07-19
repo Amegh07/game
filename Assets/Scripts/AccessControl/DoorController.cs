@@ -27,13 +27,18 @@ namespace MuseumHeist.AccessControl
         private Animator doorAnimator;
         private AudioSource audioSource;
         private Collider doorCollider;
+        private Renderer doorRenderer;
+        private MaterialPropertyBlock propBlock;
         private bool initialized;
+        private bool eventsSubscribed;
 
         void Awake()
         {
             doorAnimator = GetComponent<Animator>();
             audioSource = GetComponent<AudioSource>();
             doorCollider = GetComponent<BoxCollider>();
+            doorRenderer = GetComponent<Renderer>();
+            if (doorRenderer != null) propBlock = new MaterialPropertyBlock();
             animationRoutine = null;
             autoCloseRoutine = null;
         }
@@ -74,6 +79,7 @@ namespace MuseumHeist.AccessControl
 
         private void SubscribeToSecurityManager()
         {
+            if (eventsSubscribed) return;
             if (SecurityManager.Instance != null)
             {
                 SecurityManager.Instance.OnAlarmLevelChanged -= HandleAlarmChange;
@@ -82,17 +88,20 @@ namespace MuseumHeist.AccessControl
                 SecurityManager.Instance.OnDoorUnlockRequested += HandleDoorUnlockRequest;
                 SecurityManager.Instance.OnDoorLockRequested -= HandleDoorLockRequest;
                 SecurityManager.Instance.OnDoorLockRequested += HandleDoorLockRequest;
+                eventsSubscribed = true;
             }
         }
 
         private void UnsubscribeFromSecurityManager()
         {
+            if (!eventsSubscribed) return;
             if (SecurityManager.Instance != null)
             {
                 SecurityManager.Instance.OnAlarmLevelChanged -= HandleAlarmChange;
                 SecurityManager.Instance.OnDoorUnlockRequested -= HandleDoorUnlockRequest;
                 SecurityManager.Instance.OnDoorLockRequested -= HandleDoorLockRequest;
             }
+            eventsSubscribed = false;
         }
 
         private void HandleDoorUnlockRequest(string targetDoorID)
@@ -102,6 +111,7 @@ namespace MuseumHeist.AccessControl
 
             SetState(DoorState.Unlocked);
             OnDoorUnlocked?.Invoke(doorID);
+            SecurityManager.Instance?.NotifyDoorUnlocked(doorID);
             BeginOpen();
         }
 
@@ -116,7 +126,7 @@ namespace MuseumHeist.AccessControl
             OnDoorLocked?.Invoke(doorID);
         }
 
-        public void Interact()
+        public void Interact(PlayerController player)
         {
             if (config == null)
             {
@@ -152,6 +162,35 @@ namespace MuseumHeist.AccessControl
             }
         }
 
+        public bool CanInteract(PlayerController player)
+        {
+            if (config == null) return false;
+            return CurrentState switch
+            {
+                DoorState.Locked => true,
+                DoorState.Unlocked => true,
+                DoorState.Open => true,
+                DoorState.LockedDown => true,
+                _ => false
+            };
+        }
+
+        public string GetInteractionPrompt()
+        {
+            if (config == null) return "Door";
+            return CurrentState switch
+            {
+                DoorState.Locked => $"Open {config.doorName}",
+                DoorState.Unlocked => $"Open {config.doorName}",
+                DoorState.Open => $"Close {config.doorName}",
+                DoorState.LockedDown => $"{config.doorName} (Lockdown)",
+                _ => config.doorName
+            };
+        }
+
+        public void OnFocus() { }
+        public void OnLoseFocus() { }
+
         private void TryUnlock()
         {
             bool hasRequiredCard = InventoryManager.Instance != null &&
@@ -159,17 +198,19 @@ namespace MuseumHeist.AccessControl
 
             if (hasRequiredCard)
             {
-                SetState(DoorState.Unlocked);
-                OnDoorUnlocked?.Invoke(doorID);
-                PlaySound(config.unlockSound);
-                DoorUIFeedback.Instance?.ShowAccessGranted(config.doorName);
-                BeginOpen();
+            SetState(DoorState.Unlocked);
+                    OnDoorUnlocked?.Invoke(doorID);
+                    SecurityManager.Instance?.NotifyDoorUnlocked(doorID);
+                    PlaySound(config.unlockSound);
+                    DoorUIFeedback.Instance?.ShowAccessGranted(config.doorName);
+                    BeginOpen();
             }
             else
             {
                 PlaySound(config.accessDeniedSound);
                 OnAccessDenied?.Invoke(doorID, config.requiredKeycard);
                 DoorUIFeedback.Instance?.ShowAccessDenied(config.doorName, config.requiredKeycard);
+                NoiseManager.EmitAt(transform.position, 5f, 0.2f, NoiseType.Interaction, gameObject);
             }
         }
 
@@ -180,6 +221,7 @@ namespace MuseumHeist.AccessControl
 
             SetState(DoorState.Opening);
             CancelCurrentAnimation();
+            NoiseManager.EmitAt(transform.position, 8f, 0.4f, NoiseType.Interaction, gameObject);
             animationRoutine = StartCoroutine(AnimateOpen());
         }
 
@@ -190,6 +232,7 @@ namespace MuseumHeist.AccessControl
             SetState(DoorState.Closing);
             CancelCurrentAnimation();
             CancelAutoClose();
+            NoiseManager.EmitAt(transform.position, 6f, 0.3f, NoiseType.Interaction, gameObject);
             animationRoutine = StartCoroutine(AnimateClose());
         }
 
@@ -211,7 +254,8 @@ namespace MuseumHeist.AccessControl
                 {
                     elapsed += Time.deltaTime;
                     float t = Mathf.Clamp01(elapsed / duration);
-                    transform.localRotation = Quaternion.Slerp(closedRotation, openRotation, t);
+                    float eased = t * t * (3f - 2f * t);
+                    transform.localRotation = Quaternion.Slerp(closedRotation, openRotation, eased);
                     yield return null;
                 }
 
@@ -221,6 +265,7 @@ namespace MuseumHeist.AccessControl
             if (CurrentState != DoorState.Disabled && CurrentState != DoorState.LockedDown)
             {
                 SetState(DoorState.Open);
+                doorCollider.isTrigger = true;
                 OnDoorOpened?.Invoke(doorID);
 
                 if (config.canAutoClose)
@@ -248,7 +293,8 @@ namespace MuseumHeist.AccessControl
                 {
                     elapsed += Time.deltaTime;
                     float t = Mathf.Clamp01(elapsed / duration);
-                    transform.localRotation = Quaternion.Slerp(openRotation, closedRotation, t);
+                    float eased = t * t * (3f - 2f * t);
+                    transform.localRotation = Quaternion.Slerp(openRotation, closedRotation, eased);
                     yield return null;
                 }
 
@@ -299,6 +345,35 @@ namespace MuseumHeist.AccessControl
         private void SetState(DoorState newState)
         {
             CurrentState = newState;
+            UpdateDoorVisual();
+            UpdateDoorCollider();
+        }
+
+        private void UpdateDoorCollider()
+        {
+            if (doorCollider == null) return;
+
+            bool isOpen = CurrentState == DoorState.Open || CurrentState == DoorState.Opening;
+            doorCollider.isTrigger = isOpen;
+            doorCollider.enabled = true;
+        }
+
+        private void UpdateDoorVisual()
+        {
+            if (doorRenderer == null || propBlock == null) return;
+
+            Color tint = CurrentState switch
+            {
+                DoorState.Locked => new Color(0.8f, 0.2f, 0.2f, 1f),
+                DoorState.LockedDown => new Color(1f, 0.4f, 0f, 1f),
+                DoorState.Unlocked => new Color(0.2f, 0.8f, 0.2f, 1f),
+                DoorState.Open => new Color(0.2f, 0.6f, 0.2f, 1f),
+                _ => Color.white,
+            };
+
+            doorRenderer.GetPropertyBlock(propBlock);
+            propBlock.SetColor("_Color", tint);
+            doorRenderer.SetPropertyBlock(propBlock);
         }
 
         private void PlaySound(AudioClip clip)
@@ -334,6 +409,10 @@ namespace MuseumHeist.AccessControl
 
             switch (newLevel)
             {
+                case SecurityManager.AlarmLevel.Suspicious:
+                    HandleSuspicious();
+                    break;
+
                 case SecurityManager.AlarmLevel.Alert:
                     HandleAlert();
                     break;
@@ -342,9 +421,29 @@ namespace MuseumHeist.AccessControl
                     HandleLockdown();
                     break;
 
+                case SecurityManager.AlarmLevel.Recovery:
+                    HandleRecovery();
+                    break;
+
                 case SecurityManager.AlarmLevel.Normal:
                     HandleNormal();
                     break;
+            }
+        }
+
+        private void HandleSuspicious()
+        {
+            if (!config.lockOnSuspicious) return;
+            if (CurrentState == DoorState.LockedDown || CurrentState == DoorState.Locked) return;
+
+            if (CurrentState == DoorState.Open)
+            {
+                BeginClose();
+            }
+            else if (CurrentState == DoorState.Unlocked)
+            {
+                SetState(DoorState.Locked);
+                OnDoorLocked?.Invoke(doorID);
             }
         }
 
@@ -394,6 +493,26 @@ namespace MuseumHeist.AccessControl
             }
         }
 
+        private void HandleRecovery()
+        {
+            if (CurrentState == DoorState.LockedDown)
+            {
+                SetState(config.startsLocked ? DoorState.Locked : DoorState.Unlocked);
+
+                if (!config.startsLocked)
+                {
+                    OnDoorUnlocked?.Invoke(doorID);
+                    SecurityManager.Instance?.NotifyDoorUnlocked(doorID);
+                }
+            }
+            else if (CurrentState == DoorState.Locked && !config.startsLocked)
+            {
+                SetState(DoorState.Unlocked);
+                OnDoorUnlocked?.Invoke(doorID);
+                SecurityManager.Instance?.NotifyDoorUnlocked(doorID);
+            }
+        }
+
         private void HandleNormal()
         {
             if (CurrentState == DoorState.LockedDown)
@@ -403,7 +522,14 @@ namespace MuseumHeist.AccessControl
                 if (!config.startsLocked)
                 {
                     OnDoorUnlocked?.Invoke(doorID);
+                    SecurityManager.Instance?.NotifyDoorUnlocked(doorID);
                 }
+            }
+            else if (CurrentState == DoorState.Locked && !config.startsLocked)
+            {
+                SetState(DoorState.Unlocked);
+                OnDoorUnlocked?.Invoke(doorID);
+                SecurityManager.Instance?.NotifyDoorUnlocked(doorID);
             }
         }
 

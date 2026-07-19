@@ -36,7 +36,8 @@ public class LockedDoor : MonoBehaviour, IInteractable
     void Update()
     {
         Quaternion targetRotation = isOpen ? openRotation : closedRotation;
-        transform.localRotation = Quaternion.Slerp(transform.localRotation, targetRotation, openSpeed * Time.deltaTime);
+        float t = openSpeed * Time.deltaTime;
+        transform.localRotation = Quaternion.Slerp(transform.localRotation, targetRotation, Mathf.SmoothStep(0f, 1f, t));
     }
 
     public void Unlock()
@@ -72,12 +73,10 @@ public class LockedDoor : MonoBehaviour, IInteractable
     public void Toggle()
     {
         if (!isLocked)
-        {
             isOpen = !isOpen;
-        }
     }
 
-    public void Interact()
+    public void Interact(PlayerController player)
     {
         if (isLocked)
         {
@@ -89,4 +88,19 @@ public class LockedDoor : MonoBehaviour, IInteractable
             Debug.Log(isOpen ? openedMessage : "The door is now closed.");
         }
     }
+
+    public bool CanInteract(PlayerController player)
+    {
+        return true;
+    }
+
+    public string GetInteractionPrompt()
+    {
+        if (isLocked)
+            return "Locked";
+        return isOpen ? "Close Door" : "Open Door";
+    }
+
+    public void OnFocus() { }
+    public void OnLoseFocus() { }
 }

@@ -10,18 +10,30 @@ namespace MuseumHeist.AccessControl
         [SerializeField] private Color deniedColor = new Color(1f, 0.3f, 0.3f);
         [SerializeField] private Color grantedColor = new Color(0.3f, 1f, 0.3f);
 
-        private string currentMessage;
-        private Color currentColor;
-        private float timer;
+    private string currentMessage;
+    private Color currentColor;
+    private float timer;
+    private GUIStyle messageStyle;
 
         void Awake()
         {
             if (Instance != null && Instance != this)
             {
-                Destroy(this);
+                Destroy(gameObject);
                 return;
             }
             Instance = this;
+            DontDestroyOnLoad(gameObject);
+
+            messageStyle = new GUIStyle();
+            messageStyle.fontSize = 14;
+            messageStyle.alignment = TextAnchor.MiddleCenter;
+            messageStyle.normal.textColor = Color.white;
+        }
+
+        void OnDestroy()
+        {
+            if (Instance == this) Instance = null;
         }
 
         public void ShowAccessDenied(string doorName, KeycardType required)
@@ -46,16 +58,15 @@ namespace MuseumHeist.AccessControl
             timer = displayDuration;
         }
 
+        void Update()
+        {
+            if (timer > 0f)
+                timer -= Time.deltaTime;
+        }
+
         void OnGUI()
         {
             if (timer <= 0f || string.IsNullOrEmpty(currentMessage)) return;
-
-            timer -= Time.deltaTime;
-
-            GUI.color = currentColor;
-            GUI.skin.box.fontSize = 14;
-            GUI.skin.box.alignment = TextAnchor.MiddleCenter;
-            GUI.skin.box.normal.textColor = Color.white;
 
             float width = 380f;
             float height = 50f;
@@ -66,8 +77,10 @@ namespace MuseumHeist.AccessControl
                 height
             );
 
-            GUI.Box(rect, currentMessage);
-            GUI.color = Color.white;
+            Color original = GUI.color;
+            GUI.color = currentColor;
+            GUI.Box(rect, currentMessage, messageStyle);
+            GUI.color = original;
         }
     }
 }

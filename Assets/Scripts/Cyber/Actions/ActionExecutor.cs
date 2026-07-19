@@ -13,6 +13,7 @@ namespace MuseumHeist.Cyber
             initialized = true;
 
             RegisterInternal("DisableCamera", new DisableCameraAction());
+            RegisterInternal("DisableCameraGroup", new DisableCameraGroupAction());
             RegisterInternal("UnlockDoor", new UnlockDoorAction());
             RegisterInternal("ResetAlarm", new ResetAlarmAction());
             RegisterInternal("OpenVault", new OpenVaultAction());
@@ -44,6 +45,9 @@ namespace MuseumHeist.Cyber
                 var context = new TerminalActionContext
                 {
                     TargetID = entry.targetID,
+                    TargetIDs = entry.targetIDs != null && entry.targetIDs.Count > 0
+                        ? entry.targetIDs.ToArray()
+                        : (string.IsNullOrEmpty(entry.targetID) ? System.Array.Empty<string>() : new[] { entry.targetID }),
                     Session = session
                 };
 

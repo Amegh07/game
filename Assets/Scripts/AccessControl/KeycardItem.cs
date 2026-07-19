@@ -5,6 +5,9 @@ namespace MuseumHeist.AccessControl
     public class KeycardItem : MonoBehaviour, IInteractable
     {
         [SerializeField] private KeycardType keycardType = KeycardType.Staff;
+        public KeycardType Type => keycardType;
+        public void SetKeycardType(KeycardType type) { keycardType = type; }
+        [SerializeField] private string targetDoorID = "";
         [SerializeField] private float rotationSpeed = 80f;
         [SerializeField] private float floatSpeed = 1.5f;
         [SerializeField] private float floatHeight = 0.2f;
@@ -29,14 +32,21 @@ namespace MuseumHeist.AccessControl
             transform.Rotate(Vector3.up, rotationSpeed * Time.deltaTime);
         }
 
-        public void Interact()
+        public void Interact(PlayerController player)
         {
-            if (collected) return;
+            if (!CanInteract(player)) return;
             collected = true;
 
             if (InventoryManager.Instance != null)
             {
                 InventoryManager.Instance.AddKeycard(keycardType);
+            }
+
+            if (!string.IsNullOrEmpty(targetDoorID) && SecurityManager.Instance != null)
+            {
+                bool unlocked = SecurityManager.Instance.UnlockDoor(targetDoorID);
+                if (!unlocked)
+                    SecurityManager.Instance.RequestDoorUnlock(targetDoorID);
             }
 
             if (destroyOnPickup)
@@ -48,5 +58,18 @@ namespace MuseumHeist.AccessControl
                 gameObject.SetActive(false);
             }
         }
+
+        public bool CanInteract(PlayerController player)
+        {
+            return !collected;
+        }
+
+        public string GetInteractionPrompt()
+        {
+            return $"Pick Up {keycardType} Keycard";
+        }
+
+        public void OnFocus() { }
+        public void OnLoseFocus() { }
     }
 }

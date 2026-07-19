@@ -45,5 +45,6 @@ namespace MuseumHeist.Cyber
         public string description = "Disable a connected security camera.";
         public string requiredPermission = "";
         public string targetID = "";
+        public List<string> targetIDs = new();
     }
 }

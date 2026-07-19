@@ -95,6 +95,12 @@ public class MissionManager : MonoBehaviour
             return;
         }
         Instance = this;
+        DontDestroyOnLoad(gameObject);
+    }
+
+    void OnDestroy()
+    {
+        if (Instance == this) Instance = null;
     }
 
     void Start()
@@ -159,7 +165,7 @@ public class MissionManager : MonoBehaviour
 
         if (SecurityManager.Instance != null)
         {
-            SecurityManager.Instance.SetAlarmLevel(SecurityManager.AlarmLevel.Alert);
+            SecurityManager.Instance.ReportTrigger(SecurityManager.SecurityTrigger.PlayerDetected, "MissionManager");
         }
     }
 
@@ -203,6 +209,32 @@ public class MissionManager : MonoBehaviour
     {
         objectiveOrder = newOrder;
     }
+
+    public void RestoreProgress(int restoredCount)
+    {
+        if (objectiveOrder.Count == 0) return;
+
+        completedObjectives.Clear();
+        for (int i = 0; i < restoredCount && i < objectiveOrder.Count; i++)
+            completedObjectives.Add(objectiveOrder[i]);
+
+        currentIndex = Mathf.Clamp(restoredCount, 0, objectiveOrder.Count);
+        missionActive = currentIndex < objectiveOrder.Count;
+
+        if (currentIndex >= objectiveOrder.Count)
+        {
+            currentObjective = objectiveOrder[objectiveOrder.Count - 1];
+            missionActive = false;
+        }
+        else
+        {
+            currentObjective = objectiveOrder[currentIndex];
+        }
+
+        UpdatePhase();
+    }
+
+    public List<ObjectiveID> GetCompletedObjectives() => completedObjectives;
 
     public void ResetMission()
     {

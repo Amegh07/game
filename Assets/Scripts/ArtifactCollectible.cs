@@ -32,15 +32,29 @@ public class ArtifactCollectible : MonoBehaviour, IInteractable
         transform.Rotate(Vector3.up, rotationSpeed * Time.deltaTime);
     }
 
-    public void Interact()
+    public void Interact(PlayerController player)
     {
-        if (isCollected) return;
+        if (!CanInteract(player)) return;
 
         isCollected = true;
         gameObject.SetActive(false);
+        NoiseManager.EmitAt(transform.position, 10f, 0.5f, NoiseType.Interaction, gameObject);
         Debug.Log($"Artifact collected! Objective '{completeObjective}' complete.");
         MissionManager.Instance?.CompleteObjective(completeObjective);
         if (triggerEscapePhase)
             MissionManager.Instance?.TriggerEscapePhase();
     }
+
+    public bool CanInteract(PlayerController player)
+    {
+        return !isCollected;
+    }
+
+    public string GetInteractionPrompt()
+    {
+        return "Collect Artifact";
+    }
+
+    public void OnFocus() { }
+    public void OnLoseFocus() { }
 }

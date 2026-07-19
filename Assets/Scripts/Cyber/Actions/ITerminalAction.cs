@@ -11,6 +11,7 @@ namespace MuseumHeist.Cyber
     public class TerminalActionContext
     {
         public string TargetID { get; set; }
+        public string[] TargetIDs { get; set; }
         public NetworkSession Session { get; set; }
     }
 }
