@@ -1,4 +1,5 @@
 using UnityEngine;
+using MuseumHeist.Cyber;
 
 namespace MuseumHeist.AccessControl
 {
@@ -13,8 +14,26 @@ namespace MuseumHeist.AccessControl
         [SerializeField] private float floatHeight = 0.2f;
         [SerializeField] private bool destroyOnPickup = true;
 
+        [Header("Authentication Bridge")]
+        [SerializeField] private bool grantsCredential;
+        [SerializeField] private string credentialID = "";
+        [SerializeField] private CredentialType credentialType = CredentialType.Keycard;
+        [SerializeField] private UserRole credentialRole = UserRole.Staff;
+        [SerializeField] private string credentialDisplayName = "Staff Credential";
+
         private Vector3 startPosition;
         private bool collected;
+
+        // Keeps the physical keycard and the cyber credential as one pickup in training
+        // and in levels that intentionally use a card for both systems.
+        public void ConfigureCredentialGrant(string id, CredentialType type, UserRole role, string displayName)
+        {
+            grantsCredential = true;
+            credentialID = id;
+            credentialType = type;
+            credentialRole = role;
+            credentialDisplayName = displayName;
+        }
 
         void Start()
         {
@@ -40,6 +59,12 @@ namespace MuseumHeist.AccessControl
             if (InventoryManager.Instance != null)
             {
                 InventoryManager.Instance.AddKeycard(keycardType);
+            }
+
+            if (grantsCredential && CredentialManager.Instance != null && !string.IsNullOrEmpty(credentialID))
+            {
+                CredentialManager.Instance.AddCredential(
+                    credentialID, credentialType, credentialRole, credentialDisplayName);
             }
 
             if (!string.IsNullOrEmpty(targetDoorID) && SecurityManager.Instance != null)

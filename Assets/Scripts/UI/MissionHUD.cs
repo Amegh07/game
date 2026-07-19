@@ -101,7 +101,37 @@ public class MissionHUD : MonoBehaviour
         objectiveNames[ObjectiveID.Tutorial_StealArtifact] = "Steal the training artifact";
         objectiveNames[ObjectiveID.Tutorial_Escape] = "Escape the training facility";
         objectiveNames[ObjectiveID.Tutorial_Complete] = "Training Complete";
+        objectiveNames[ObjectiveID.Tutorial_Movement] = "Learn movement controls";
+        objectiveNames[ObjectiveID.Tutorial_Interaction] = "Interact with the training station";
+        objectiveNames[ObjectiveID.Tutorial_CredentialPickup] = "Obtain the Staff Credential";
+        objectiveNames[ObjectiveID.Tutorial_LockedDoor] = "Open the locked staff door";
+        objectiveNames[ObjectiveID.Tutorial_Authentication] = "Authenticate at the training terminal";
+        objectiveNames[ObjectiveID.Tutorial_Authorization] = "Check your access permissions";
+        objectiveNames[ObjectiveID.Tutorial_CameraAwareness] = "Avoid the security camera";
+        objectiveNames[ObjectiveID.Tutorial_GuardAwareness] = "Evade the patrolling guard";
+        objectiveNames[ObjectiveID.Tutorial_SecurityConsole] = "Use the security console";
+        objectiveNames[ObjectiveID.Tutorial_Exit] = "Reach the training exit";
 
+        objectiveNames[ObjectiveID.Academy_EnterReception] = "Enter the Academy reception";
+        objectiveNames[ObjectiveID.Academy_CompleteCheckin] = "Complete security check-in";
+        objectiveNames[ObjectiveID.Academy_AttendBriefing] = "Attend the security briefing";
+        objectiveNames[ObjectiveID.Academy_CollectEquipment] = "Collect training equipment";
+        objectiveNames[ObjectiveID.Academy_CompleteMovementCourse] = "Complete the movement course";
+        objectiveNames[ObjectiveID.Academy_CompleteAccessControlLab] = "Complete the access-control lab";
+        objectiveNames[ObjectiveID.Academy_CompleteCameraLab] = "Complete the camera-detection lab";
+        objectiveNames[ObjectiveID.Academy_CompleteGuardAwarenessLab] = "Complete the guard-awareness lab";
+        objectiveNames[ObjectiveID.Academy_CompleteStealthMaze] = "Complete the stealth maze";
+        objectiveNames[ObjectiveID.Academy_CompleteSecOpsTraining] = "Complete Security Operations training";
+        objectiveNames[ObjectiveID.Academy_SimFindStaffCredential] = "Find the simulated Staff Credential";
+        objectiveNames[ObjectiveID.Academy_SimUnlockStaffDoor] = "Unlock the simulated staff door";
+        objectiveNames[ObjectiveID.Academy_SimAvoidCamera] = "Avoid the simulated camera";
+        objectiveNames[ObjectiveID.Academy_SimAvoidGuard] = "Avoid the simulated guard";
+        objectiveNames[ObjectiveID.Academy_SimAuthenticate] = "Authenticate at the simulator terminal";
+        objectiveNames[ObjectiveID.Academy_SimDisableCameras] = "Disable simulated cameras";
+        objectiveNames[ObjectiveID.Academy_SimEnterRestrictedArea] = "Enter the restricted simulation area";
+        objectiveNames[ObjectiveID.Academy_SimRetrieveArtifact] = "Retrieve the simulated artifact";
+        objectiveNames[ObjectiveID.Academy_SimEscape] = "Escape the simulation";
+        objectiveNames[ObjectiveID.Academy_Graduate] = "Graduate from the Security Academy";
         objectiveStyle = new GUIStyle();
         objectiveStyle.fontSize = 13;
 

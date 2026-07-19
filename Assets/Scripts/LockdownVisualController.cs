@@ -18,6 +18,11 @@ public class LockdownVisualController : MonoBehaviour
     private bool active;
     private float flashTimer;
     private bool eventsSubscribed = false;
+    
+    void Start()
+    {
+        SubscribeToEvents();
+    }
 
     void OnEnable()
     {
@@ -38,8 +43,10 @@ public class LockdownVisualController : MonoBehaviour
     {
         if (eventsSubscribed) return;
         if (SecurityManager.Instance != null)
+        {
             SecurityManager.Instance.OnAlarmLevelChanged += HandleAlarmChanged;
-        eventsSubscribed = true;
+            eventsSubscribed = true;
+        }
     }
 
     private void UnsubscribeFromEvents()

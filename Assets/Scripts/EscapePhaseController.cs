@@ -53,6 +53,7 @@ public class EscapePhaseController : MonoBehaviour
 
     void Start()
     {
+        SubscribeToEvents();
         CachePlayerReference();
     }
 

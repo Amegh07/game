@@ -14,3 +14,4 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::MuseumHeist.Cyber.PermissionSet
   permissions:
   - disable.cameras
+  - open.doors.security

@@ -190,26 +190,32 @@ public class GuardFSM : MonoBehaviour
     {
         if (eventsSubscribed) return;
         if (SecurityManager.Instance != null)
+        {
             SecurityManager.Instance.OnAlarmLevelChanged += HandleAlarmChange;
+            eventsSubscribed = true;
+        }
         if (MissionHUD.Instance != null)
             MissionHUD.Instance.RegisterGuard(this);
-        eventsSubscribed = true;
     }
 
     private void UnsubscribeFromEvents()
     {
-        if (!eventsSubscribed) return;
-        if (SecurityManager.Instance != null)
-            SecurityManager.Instance.OnAlarmLevelChanged -= HandleAlarmChange;
+        if (eventsSubscribed)
+        {
+            if (SecurityManager.Instance != null)
+                SecurityManager.Instance.OnAlarmLevelChanged -= HandleAlarmChange;
+            eventsSubscribed = false;
+        }
         if (NoiseManager.Instance != null)
             NoiseManager.Instance.UnregisterGuard(this);
         if (MissionHUD.Instance != null)
             MissionHUD.Instance.UnregisterGuard(this);
-        eventsSubscribed = false;
     }
 
     void Start()
     {
+        SubscribeToEvents();
+
         if (player == null)
         {
             GameObject p = GameObject.FindGameObjectWithTag("Player");

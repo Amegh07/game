@@ -46,6 +46,7 @@ public class SecurityCamera : MonoBehaviour
 
     public event System.Action<string> OnPlayerDetected;
     public event System.Action<string> OnPlayerLost;
+    public event System.Action<string> OnDetectionStarted;
 
     private float currentAngle;
     private bool rotatingLeft;
@@ -236,9 +237,13 @@ public class SecurityCamera : MonoBehaviour
 
         if (playerInSight)
         {
+            bool detectionWasIdle = alertState == CameraAlertState.Idle;
             detectionProgress += Time.deltaTime;
             detectionProgress = Mathf.Min(detectionProgress, timeNeeded);
             alertState = CameraAlertState.Detecting;
+
+            if (detectionWasIdle)
+                OnDetectionStarted?.Invoke(cameraID);
 
             if (detectionProgress >= timeNeeded && !hasFiredDetection)
             {
@@ -250,24 +255,20 @@ public class SecurityCamera : MonoBehaviour
                     SecurityManager.SecurityTrigger.CameraPlayerDetected, cameraID);
             }
         }
-        else
+        else if (detectionProgress > 0f)
         {
-            if (detectionProgress > 0f)
-            {
-                detectionProgress -= decay * Time.deltaTime;
-                detectionProgress = Mathf.Max(0f, detectionProgress);
+            detectionProgress -= decay * Time.deltaTime;
+            detectionProgress = Mathf.Max(0f, detectionProgress);
 
-                if (detectionProgress <= 0f && !hasFiredLost)
-                {
-                    hasFiredDetection = false;
-                    hasFiredLost = true;
-                    alertState = CameraAlertState.Idle;
-                    OnPlayerLost?.Invoke(cameraID);
-                }
+            if (detectionProgress <= 0f && !hasFiredLost)
+            {
+                hasFiredDetection = false;
+                hasFiredLost = true;
+                alertState = CameraAlertState.Idle;
+                OnPlayerLost?.Invoke(cameraID);
             }
         }
     }
-
     public float GetDetectionProgress()
     {
         if (!isActive || detectionProgress <= 0f) return 0f;

@@ -72,15 +72,14 @@ public class MissionScorer : MonoBehaviour
     private void SubscribeToEvents()
     {
         if (eventsSubscribed) return;
-        if (SecurityManager.Instance != null)
-            SecurityManager.Instance.OnTriggerReported += HandleTrigger;
-        if (MissionManager.Instance != null)
+        if (SecurityManager.Instance != null && MissionManager.Instance != null)
         {
+            SecurityManager.Instance.OnTriggerReported += HandleTrigger;
             MissionManager.Instance.OnObjectiveStarted += HandleObjectiveStarted;
             MissionManager.Instance.OnObjectiveCompleted += HandleObjectiveCompleted;
             MissionManager.Instance.OnMissionCompleted += HandleMissionComplete;
+            eventsSubscribed = true;
         }
-        eventsSubscribed = true;
     }
 
     private void UnsubscribeFromEvents()

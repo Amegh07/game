@@ -12,4 +12,6 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 73ac096af4a66eb44bde572e0d6acbe1, type: 3}
   m_Name: TutorialRoleConfig
   m_EditorClassIdentifier: Assembly-CSharp::MuseumHeist.Cyber.RolePermissionsConfig
-  rolePermissions: []
+  rolePermissions:
+  - role: 2
+    permissionSet: {fileID: 11400000, guid: b1853016bf35f65409191cd18d6c5998, type: 2}

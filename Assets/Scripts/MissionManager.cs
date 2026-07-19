@@ -40,7 +40,41 @@ public enum ObjectiveID
     Tutorial_DisableCamera = 104,
     Tutorial_StealArtifact = 105,
     Tutorial_Escape = 106,
-    Tutorial_Complete = 107
+    Tutorial_Complete = 107,
+
+    // Training Ground guided flow. Explicit values preserve existing scene serialization.
+    Tutorial_Movement = 108,
+    Tutorial_Interaction = 109,
+    Tutorial_CredentialPickup = 110,
+    Tutorial_LockedDoor = 111,
+    Tutorial_Authentication = 112,
+    Tutorial_Authorization = 113,
+    Tutorial_CameraAwareness = 114,
+    Tutorial_GuardAwareness = 115,
+    Tutorial_SecurityConsole = 116,
+    Tutorial_Exit = 117,
+
+    // Security Academy objectives. Explicit values preserve existing scene and checkpoint serialization.
+    Academy_EnterReception = 200,
+    Academy_CompleteCheckin = 201,
+    Academy_AttendBriefing = 202,
+    Academy_CollectEquipment = 203,
+    Academy_CompleteMovementCourse = 204,
+    Academy_CompleteAccessControlLab = 205,
+    Academy_CompleteCameraLab = 206,
+    Academy_CompleteGuardAwarenessLab = 207,
+    Academy_CompleteStealthMaze = 208,
+    Academy_CompleteSecOpsTraining = 209,
+    Academy_SimFindStaffCredential = 210,
+    Academy_SimUnlockStaffDoor = 211,
+    Academy_SimAvoidCamera = 212,
+    Academy_SimAvoidGuard = 213,
+    Academy_SimAuthenticate = 214,
+    Academy_SimDisableCameras = 215,
+    Academy_SimEnterRestrictedArea = 216,
+    Academy_SimRetrieveArtifact = 217,
+    Academy_SimEscape = 218,
+    Academy_Graduate = 219
 }
 
 public enum MissionPhase

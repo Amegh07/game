@@ -13,7 +13,7 @@ MonoBehaviour:
   m_Name: TutorialDoor
   m_EditorClassIdentifier: Assembly-CSharp::MuseumHeist.AccessControl.DoorConfig
   doorName: Training Door
-  requiredKeycard: 0
+  requiredKeycard: 1
   startsLocked: 1
   openSpeed: 120
   closeSpeed: 120

@@ -15,14 +15,19 @@ MonoBehaviour:
   terminalName: Training Terminal
   terminalID: terminal_training
   requiredCredentialType: 0
-  minimumRole: 0
-  skipAuthentication: 1
+  minimumRole: 2
+  skipAuthentication: 0
   actions:
   - actionType: DisableCamera
     displayName: Disable Camera
     description: Disable the training security camera.
     requiredPermission: disable.cameras
     targetID: camera_training
+  - actionType: UnlockDoor
+    displayName: Unlock Door
+    description: Unlock the training staff door.
+    requiredPermission: open.doors.security
+    targetID: door_training
   connectedCameraIDs: []
   connectedDoorIDs: []
   themeColor: {r: 0, g: 1, b: 0.4, a: 1}
